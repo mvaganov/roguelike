@@ -44,7 +44,7 @@ namespace MazeGeneration {
 
 	public class Maze {
 		public readonly CellState[,] cells;
-		int[,] marks;
+		public int[,] marks;
 		public readonly Coord size;
 		public readonly Random rng;
 		List<MazeSection> mazeSections = new List<MazeSection>();
@@ -64,10 +64,18 @@ namespace MazeGeneration {
 			TerminalsAndHalways(); // finds terminal and tunnel paths
 			List<MazeRoom> rooms = MazeRoom.Discover(this, mazeSections); // TODO when looking for rooms, don't intersect dead end paths or tunnel paths.
 
-			mazeSections.AddRange(rooms);
+			//mazeSections.AddRange(rooms);
 			for (int i = 0; i < rooms.Count; ++i) {
-//				rooms[i].ForEach(c => marks.SetAt(c, i + 1));
+				rooms[i].ForEach(c => marks.SetAt(c, i + 1));
 			}
+
+			List<ChunkyRoom> chonkies = ChunkyRoom.MergeRooms(this, rooms);
+			Console.Write("chonks: " + chonkies.Count);
+			Console.ReadKey();
+			for (int i = 0; i < chonkies.Count; ++i) {
+				chonkies[i].ForEach(c => marks.SetAt(c, i + 1));
+			}
+
 
 			// TODO consolodate rooms when one of the rooms connects completely on one side
 			// TODO generate edges for rooms, tunnels, and dead-ends.
@@ -224,8 +232,6 @@ namespace MazeGeneration {
 				mazeSections.Add(newPath);
 				terminals.Add(newPath);
 				MarkPath(newPath.path, mazeSections.Count);
-				//Coord fin = newPath.Finish;
-				//marks.SetAt(fin, 0xff);
 			}
 			deadEnds = mazeSections.Count;
 			// now find tunnels (single-cell width paths that are not dead-ends)
@@ -242,8 +248,6 @@ namespace MazeGeneration {
 						mazeSections.Add(newPath);
 						hallways.Add(newPath);
 						MarkPath(newPath.path, mazeSections.Count);
-						//Coord fin = newPath.Finish;
-						//marks.SetAt(fin, 0xff);
 					}
 				}
 			});
@@ -307,23 +311,27 @@ namespace MazeGeneration {
 			return next != c;
 		}
 
-		// TODO discover why path 21 and 22 don't register as the same path
 		public static bool FindStartOfPath(Coord start, Maze m, List<Coord> path, CellState[] travelOrder = null) {
 			if (travelOrder == null) travelOrder = WallEdge.directions;
 			int edges = 0, moves = 0;
-			Coord c = start, validNext = start;
+			Coord c = start, validNext = start, previousValidNext = start, possibleAlternate = start;
 			path.Clear();
 			do {
+				if(m.marks.At(c) != 0) { break; }
 				edges = 0;
 				for (int i = 0; i < travelOrder.Length; ++i) {
 					Coord next;
 					if (m.CellConnects(c, travelOrder[i], out next) && !path.Contains(next)) {
+						previousValidNext = validNext;
 						validNext = next;
 						edges++;
 					}
 				}
 				if (edges == 0) { break; }
-				if(edges > 1 && moves > 0) { break; }
+				// the following 2 if statements will restart the path on the other side of the first valid cell if the initial direction is bad
+				if (edges == 2 && moves == 0) { possibleAlternate = previousValidNext; }
+				if (edges > 1 && moves == 1 && possibleAlternate != start) { c = possibleAlternate; possibleAlternate = start; continue; }
+				if (edges > 1 && moves > 0) { break; }
 				if (CheckOpenArea(m, c, CellState.Down, CellState.Right)) { break; }
 				if (CheckOpenArea(m, c, CellState.Down, CellState.Left)) { break; }
 				if (CheckOpenArea(m, c, CellState.Up, CellState.Left)) { break; }
@@ -333,12 +341,17 @@ namespace MazeGeneration {
 				++moves;
 				if (moves > 10000) throw new Exception("too much pathing");
 			} while (true);
+//			Console.Write("");
 			return path.Count > 0;
 		}
 
 		private static bool CheckOpenArea(Maze m, Coord c, CellState dirA, CellState dirB) {
 			CellState flag = (dirA | dirB), opposite = (dirA.OppositeWall() | dirB.OppositeWall());
-			return ((m[c] & flag) == 0 && (m[c + WallEdge.DirToCoord(dirA) + WallEdge.DirToCoord(dirB)] & opposite) == 0);
+			CellState thisOne = m[c];
+			if ((thisOne & flag) != 0) return false;
+			Coord kittyCornerLoc = c + WallEdge.DirToCoord(dirA) + WallEdge.DirToCoord(dirB);
+			CellState kittyCorner = m[kittyCornerLoc];
+			return (kittyCorner & opposite) == 0;
 		}
 
 		public Path(IList<Coord> seedCells, Maze m) {
