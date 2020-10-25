@@ -54,6 +54,7 @@
     <Compile Include="Map2D.cs" />
     <Compile Include="MazeGeneration.cs" />
     <Compile Include="MazeGraph.cs" />
+    <Compile Include="MazeRooms.cs" />
     <Compile Include="RoguelikeVisibility.cs" />
     <Compile Include="Rect.cs" />
     <Compile Include="ShowChars.cs" />

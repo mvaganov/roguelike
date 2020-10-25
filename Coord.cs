@@ -30,7 +30,8 @@ public struct Coord {
 	public static Coord operator -(Coord a, Coord b) => new Coord(a.col - b.col, a.row - b.row);
 	public static Coord operator -(Coord a)          => new Coord(       -a.col,       - a.row);
 
-	public void Scale(Coord scale) { col *= scale.col; row *= scale.row; }
+	public Coord Scale(Coord scale) { col *= scale.col; row *= scale.row; return this; }
+	public Coord InverseScale(Coord scale) { col /= scale.col; row /= scale.row; return this; }
 
 	/// <param name="min">inclusive starting point</param>
 	/// <param name="max">exclusive limit</param>
@@ -114,6 +115,28 @@ public struct Coord {
 	}
 
 	public bool ForEach(System.Func<Coord, bool> action) => ForEach(Zero, this, action);
+
+	public static void ForEachInclusive(Coord start, Coord end, System.Action<Coord> action) {
+		Coord cursor = start;
+		cursor.row = start.row;
+		do {
+			cursor.col = start.col;
+			do {
+				action(cursor);
+				if (cursor.col == end.col) { break; }
+				if (cursor.col < end.col) { ++cursor.col; } else { --cursor.col; }
+			} while (true);
+			if (cursor.row == end.row) { break; }
+			if (cursor.row < end.row) { ++cursor.row; } else { --cursor.row; }
+		} while (true);
+	}
+
+	public static void ExpandRectangle(Coord pMin, Coord pMax, ref Coord min, ref Coord max) {
+		if (pMin.col < min.col) { min.col = pMin.col; }
+		if (pMin.row < min.row) { min.row = pMin.row; }
+		if (pMax.col > max.col) { max.col = pMax.col; }
+		if (pMax.row > max.row) { max.row = pMax.row; }
+	}
 }
 
 public static class CoordExtension {

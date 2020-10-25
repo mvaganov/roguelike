@@ -38,19 +38,19 @@ namespace MazeGeneration {
 		public static WallEdge None = new WallEdge { next = Coord.Zero, dir = CellState.None };
 	}
 
-	public abstract class MazeSection {
-		public abstract bool Contains(Coord c);
-	}
-
 	public class Maze {
 		public readonly CellState[,] cells;
 		public int[,] marks;
 		public readonly Coord size;
 		public readonly Random rng;
-		List<MazeSection> mazeSections = new List<MazeSection>();
-		List<MazeSection> terminals = new List<MazeSection>();
-		List<MazeSection> hallways = new List<MazeSection>();
+		public List<MazeRoomBase> allRooms = new List<MazeRoomBase>();
+		public List<MazeRoomBase> terminals = new List<MazeRoomBase>();
+		public List<MazeRoomBase> hallways = new List<MazeRoomBase>();
+		public List<MazeRoomBase> aabbRooms = new List<MazeRoomBase>();
 		int deadEnds;
+		bool showMarks = true;
+
+		public MazeGraph graph = new MazeGraph();
 
 		public Maze(Coord size, int seed = 0, int errode = 0) {
 			this.size = size;
@@ -62,26 +62,31 @@ namespace MazeGeneration {
 			VisitCell(start);
 			for(int i = 0; i < errode; ++i) { Erode(); }
 			TerminalsAndHalways(); // finds terminal and tunnel paths
-			List<MazeRoom> rooms = MazeRoom.Discover(this, mazeSections); // TODO when looking for rooms, don't intersect dead end paths or tunnel paths.
+			aabbRooms = MazeAabbRoom.Discover(this, allRooms); // TODO when looking for rooms, don't intersect dead end paths or tunnel paths.
 
-			//mazeSections.AddRange(rooms);
-			for (int i = 0; i < rooms.Count; ++i) {
-				rooms[i].ForEach(c => marks.SetAt(c, i + 1));
+			for (int i = 0; i < aabbRooms.Count; ++i) {
+				aabbRooms[i].ForEach(c => marks.SetAt(c, i + allRooms.Count));
 			}
 
-			List<ChunkyRoom> chonkies = ChunkyRoom.MergeRooms(this, rooms);
-			Console.Write("chonks: " + chonkies.Count);
-			Console.ReadKey();
-			for (int i = 0; i < chonkies.Count; ++i) {
-				chonkies[i].ForEach(c => marks.SetAt(c, i + 1));
+			//if (true) return; // ignore the room merge for now... still working on individual small room generation
+			List<MazeRoomBase> aggregateRooms = MazeRoomAggregate.MergeRooms(this, aabbRooms);
+			for (int i = 0; i < aggregateRooms.Count; ++i) {
+				int id = allRooms.Count + i + 1;
+				aggregateRooms[i].ForEach(c => marks.SetAt(c, id));
+			}
+			//if (true) return; // ignore the final room merge for now... still working on individual room merging
+			List<MazeRoomBase> merged = MazeRoomAggregate.MergeRooms(this, aggregateRooms);
+			for (int i = 0; i < merged.Count; ++i) {
+				allRooms.Add(merged[i]);
+				merged[i].ForEach(c => marks.SetAt(c, allRooms.Count));
 			}
 
-
-			// TODO consolodate rooms when one of the rooms connects completely on one side
-			// TODO generate edges for rooms, tunnels, and dead-ends.
-			//Console.Write(rooms.Count);
-			//Console.ReadKey();
+			graph.Generate(this, allRooms);
 		}
+
+		public MazeGraph.Node GetNodeAt(Coord coord) => graph.GetNodeAt(coord);
+
+		public IList<MazeGraph.Edge> GetEdgesForNodeAt(Coord coord) => graph.GetEdgesForNodeAt(coord.InverseScale(tileSize));
 
 		public void Erode() {
 			List<WallEdge> toKnockDown = new List<WallEdge>();
@@ -165,6 +170,13 @@ namespace MazeGeneration {
 			next = cell + WallEdge.DirToCoord(dir);
 			return cell.IsWithin(size) && !this[cell].HasFlag(dir);
 		}
+		/// as <see cref="CellConnects(Coord, CellState, out Coord)"/>, except it also includes blocked edges
+		public bool CellBorders(Coord cell, CellState dir, out Coord next) {
+			next = cell + WallEdge.DirToCoord(dir);
+			return cell.IsWithin(size); //&& !this[cell].HasFlag(dir);
+		}
+
+		public Coord tileSize = new Coord { col = 3, row = 2 };
 		public string empty = "  ", horizontalWall = "--", verticalWall = "|", corner = "+", missingVerticalWall = " ", missingCorner = " ";
 		public override string ToString() {
 			bool cullSinglePillars = true;
@@ -175,7 +187,7 @@ namespace MazeGeneration {
 				var sbTop = new StringBuilder();
 				var sbMid = new StringBuilder();
 				for (int x = 0; x < size.X; x++) {
-					if(marks != null) {
+					if(showMarks && marks != null) {
 						int pathIndex = marks[y, x];
 						string label = (pathIndex == 0)?"  ":pathIndex.ToString("X2");
 						if (empty.Length == 1) { label = label[label.Length - 1].ToString(); }
@@ -228,174 +240,29 @@ namespace MazeGeneration {
 		public void TerminalsAndHalways() {
 			List<Coord> deadends = FindDeadEnds();
 			foreach (Coord end in deadends) {
-				Path newPath = new Path(end, this);
-				mazeSections.Add(newPath);
+				MazePath newPath = new MazePath(end, this);
+				allRooms.Add(newPath);
 				terminals.Add(newPath);
-				MarkPath(newPath.path, mazeSections.Count);
+				MarkPath(newPath.path, allRooms.Count);
 			}
-			deadEnds = mazeSections.Count;
+			deadEnds = allRooms.Count;
 			// now find tunnels (single-cell width paths that are not dead-ends)
 			List<Coord> minorPath = new List<Coord>();
 			size.ForEach(c => {
 				if (marks.At(c) != 0) return;
 				int edgeCount = GetEdgeCount(c);
 				if(edgeCount == 2) {
-					if(Path.FindStartOfPath(c, this, minorPath)) {
+					if(MazePath.FindStartOfPath(c, this, minorPath)) {
 						minorPath.Reverse();
 						//marks.SetAt(minorPath[0], minorPath.Count);// paths.Count + 1);
-						Path newPath = new Path(minorPath, this);
+						MazePath newPath = new MazePath(minorPath, this);
 						if (newPath.path.Count == 0) { newPath.path.Add(minorPath[0]); } // 1-unit hallways need an extra push
-						mazeSections.Add(newPath);
+						allRooms.Add(newPath);
 						hallways.Add(newPath);
-						MarkPath(newPath.path, mazeSections.Count);
+						MarkPath(newPath.path, allRooms.Count);
 					}
 				}
 			});
-
-			//// once the dead ends are found, start from the ends of the dead ends
-			//for (int i = 0; i < paths.Count; ++i) {
-			//	Path p = paths[i], newPath;
-			//	int counter = 0;
-			//	do {
-			//		newPath = new Path(p.Finish, this, paths);
-			//		if (newPath.path.Count == 0) break;
-			//		paths.Add(newPath);
-			//		MarkPath(newPath.path, paths.Count);
-			//		if (counter++ > 100000) { throw new Exception("infinite loop?"); }
-			//	} while (newPath.path.Count > 0);
-			//}
-		}
-	}
-
-	public class Path : MazeSection {
-		public List<Coord> path = new List<Coord>();
-
-		public override bool Contains(Coord c) { return path.IndexOf(c, 0, path.Count) >= 0; }
-
-		private bool GetNextOnPath(Maze maze, Coord c, out Coord next) {
-			next = c;
-			for (int i = 0; i < 4; ++i) { // check all the neighbors
-				if (maze.CellConnects(c, i, out Coord n)) {
-					if (path.IndexOf(n) >= 0) continue; // ignore coords already on the path
-					if (next == c) {
-						next = n;
-					} else {
-						//Console.WriteLine($"@{c}, found {n} along with {next}");
-						return false; // if there is more than one next, this is the end of the path.
-					}
-				}
-			}
-			return next != c;
-		}
-
-		private List<Path> OtherPathsRightHere(List<MazeSection> allPaths, Coord c) {
-			List<Path> pathsRightHere = new List<Path>();
-			foreach (Path p in allPaths) {
-				if (p.path.Contains(c)) { pathsRightHere.Add(p); }
-			}
-			return pathsRightHere;
-		}
-
-		private bool GetNextNotOnPaths(List<Path> otherPaths, Maze maze, Coord c, out Coord next, out int connectionsFromHere) {
-			connectionsFromHere = 0;
-			next = c;
-			for (int i = 0; i < 4; ++i) {
-				if (maze.CellConnects(c, i, out Coord n)) {
-					++connectionsFromHere;
-					Path neighborPathClaimsThis = otherPaths.Find(p => p.path.IndexOf(n) >= 0);
-					if(neighborPathClaimsThis == null) {
-						next = n;
-					}
-				}
-			}
-			return next != c;
-		}
-
-		public static bool FindStartOfPath(Coord start, Maze m, List<Coord> path, CellState[] travelOrder = null) {
-			if (travelOrder == null) travelOrder = WallEdge.directions;
-			int edges = 0, moves = 0;
-			Coord c = start, validNext = start, previousValidNext = start, possibleAlternate = start;
-			path.Clear();
-			do {
-				if(m.marks.At(c) != 0) { break; }
-				edges = 0;
-				for (int i = 0; i < travelOrder.Length; ++i) {
-					Coord next;
-					if (m.CellConnects(c, travelOrder[i], out next) && !path.Contains(next)) {
-						previousValidNext = validNext;
-						validNext = next;
-						edges++;
-					}
-				}
-				if (edges == 0) { break; }
-				// the following 2 if statements will restart the path on the other side of the first valid cell if the initial direction is bad
-				if (edges == 2 && moves == 0) { possibleAlternate = previousValidNext; }
-				if (edges > 1 && moves == 1 && possibleAlternate != start) { c = possibleAlternate; possibleAlternate = start; continue; }
-				if (edges > 1 && moves > 0) { break; }
-				if (CheckOpenArea(m, c, CellState.Down, CellState.Right)) { break; }
-				if (CheckOpenArea(m, c, CellState.Down, CellState.Left)) { break; }
-				if (CheckOpenArea(m, c, CellState.Up, CellState.Left)) { break; }
-				if (CheckOpenArea(m, c, CellState.Up, CellState.Right)) { break; }
-				path.Add(c);
-				c = validNext;
-				++moves;
-				if (moves > 10000) throw new Exception("too much pathing");
-			} while (true);
-//			Console.Write("");
-			return path.Count > 0;
-		}
-
-		private static bool CheckOpenArea(Maze m, Coord c, CellState dirA, CellState dirB) {
-			CellState flag = (dirA | dirB), opposite = (dirA.OppositeWall() | dirB.OppositeWall());
-			CellState thisOne = m[c];
-			if ((thisOne & flag) != 0) return false;
-			Coord kittyCornerLoc = c + WallEdge.DirToCoord(dirA) + WallEdge.DirToCoord(dirB);
-			CellState kittyCorner = m[kittyCornerLoc];
-			return (kittyCorner & opposite) == 0;
-		}
-
-		public Path(IList<Coord> seedCells, Maze m) {
-			path.AddRange(seedCells);
-			Coord cursor = seedCells[seedCells.Count - 1];
-			int counter = 0, max = m.size.X * m.size.Y;
-			Coord next;
-			do {
-				if (GetNextOnPath(m, cursor, out next)) {
-					cursor = next;
-					path.Add(cursor);
-				} else {
-					break;
-				}
-			} while (++counter < max);
-			RemoveDuplicates();
-			path.RemoveAt(path.Count - 1);
-		}
-
-		public void RemoveDuplicates() {
-			for(int i = 0; i < path.Count; ++i) {
-				for(int j = i+1; j < path.Count; ++j) {
-					if(path[i] == path[j]) {
-						path.RemoveAt(j--);
-					}
-				}
-			}
-		}
-
-		// create path that avoids other paths
-		public Path(Coord cursor, Maze m) {
-			path.Add(cursor);
-			int counter = 0, max = m.size.X * m.size.Y;
-			Coord next;
-			do {
-				if (GetNextOnPath(m, cursor, out next)) {
-					cursor = next;
-					path.Add(cursor);
-				} else {
-					break;
-				}
-			} while (++counter < max);
-			RemoveDuplicates();
-			path.RemoveAt(path.Count - 1);
 		}
 	}
 }

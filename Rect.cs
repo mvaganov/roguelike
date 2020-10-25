@@ -1,4 +1,4 @@
-public class Rect {
+public struct Rect {
 	public Coord min, max;
 
 	public Rect(Coord min, Coord max) {

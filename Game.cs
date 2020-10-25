@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using MazeGeneration;
 
 public class Game : GameBase {
 	public static int Main(string[] args) {
@@ -21,6 +22,7 @@ public class Game : GameBase {
 	Random rng = new Random(0);
 	string blockingWalls = "#+-|", erodedDebris = "    `   '  . .,;:=";
 	Coord mazeSize;
+	Maze mazeGen;
 
 	RoguelikeVisibility playerVisibilityAlgorithm;
 	System.Collections.BitArray playerScreenVisibility, playerSeenIt;
@@ -31,7 +33,9 @@ public class Game : GameBase {
 		base.Init(screenSize);
 		maze = new Entity2D('/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
 		try {
-			MazeGeneration.Maze mazeGen = new MazeGeneration.Maze(new Coord(30, 20), 2, 5);
+			mazeGen = new Maze(new Coord(30, 20), 2, 5);
+			mazeGen.graph.DebugPrint(Coord.Zero);
+			Console.ReadKey();
 			maze.LoadFromString(mazeGen.ToString());//maze.LoadFromFile("bigmaze.txt");
 //			MazeErosion(maze.map, blockingWalls, erodedDebris);
 			System.IO.File.WriteAllText(@"../../mazeout.txt", maze.map.ToString());
@@ -84,9 +88,30 @@ public class Game : GameBase {
 	protected override void Draw() {
 		DrawEntities();
 		ColorScreenByPlayerVisibility();
+		DrawRoomExits();
 		Render();
 		Console.Write(fireballs.Count);
 	}
+
+	public void DrawRoomExits() {
+		IList<MazeGraph.Edge> edges = mazeGen.GetEdgesForNodeAt(player.position);
+		for(int e = 0; e < edges.Count; ++e) {
+			MazeGraph.Edge edge = edges[e];
+			MazePath mp = edge.edgeData as MazePath;
+			mp.ForEach(c => {
+				c = c.Scale(mazeGen.tileSize);
+				Coord s = c - screenOffset;
+				Coord.ForEach(s, s + mazeGen.tileSize, p => {
+					if (screen.Contains(p)) {
+						ConsoleTile ct = screen[p];
+						ct.Back = ConsoleColor.Yellow;
+						screen[p] = ct;
+					}
+				});
+			});
+		}
+	}
+
 
 	public bool PlayerVisionBlockedAt(Coord screenCoord) {
 		if (!screenCoord.IsWithin(screen.Size)) return true;
