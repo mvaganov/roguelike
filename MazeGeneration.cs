@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Linq;
 
 /// <summary>
 /// start code from https://rosettacode.org/wiki/Maze_generation#C.23
@@ -82,6 +83,9 @@ namespace MazeGeneration {
 			}
 
 			graph.Generate(this, allRooms);
+
+			//List<MazeGraph.Node> path = graph.A_Star(GetNodeAt(new Coord(0, 0)), GetNodeAt(new Coord(6, 6)));
+			//Console.WriteLine(string.Join(" -> ", path.Select(n => graph.GetId(n).ToString("X"))));
 		}
 
 		public MazeGraph.Node GetNodeAt(Coord coord) => graph.GetNodeAt(coord);

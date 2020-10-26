@@ -63,17 +63,29 @@ namespace MazeGeneration
 				return v;
 			});
 			shortcutScore = CalculateNodeWeight(start, (node, depth) => {
-				float v = depth;
 				Edge bestEdge = GetBestShortcutBackwardFor(node);
+				Node otherNode = bestEdge._to;
+				float otherDepth = depthScore[otherNode];
 				bool isThisTerminal = IsTerminal(node);
-				bool isOtherTerminal = IsTerminal(bestEdge._to);
-				if (isThisTerminal) depth += 10;
-				if (isOtherTerminal) depth += 20;
-				return depth - depthScore[bestEdge._to];
+				bool isThisTunnel = IsTunnel(node);
+				bool isOtherTerminal = IsTerminal(otherNode);
+				bool isOtherTunnel = IsTunnel(otherNode);
+				List<Node> pathBetween = A_Star(node, otherNode);
+
+				int weightModification = 0;
+				if (isThisTerminal) weightModification += 10;
+				if (isOtherTerminal) weightModification += 20;
+				if (isThisTunnel) weightModification -= 30;
+				if (isOtherTunnel) weightModification -= 30;
+				//return depth - otherDepth + weightModification;
+				return pathBetween.Count + weightModification;
 			});
 		}
 		Dictionary<Node, float> depthScore = new Dictionary<Node, float>();
-		List<KeyValuePair<Node, float>> bossRoomScore, shortcutScore;
+		List<KeyValuePair<Node, float>> 
+			bossRoomScore, // best place for an epic encounter
+			shortcutScore, // best shortcut period
+			shortcutBackScore;
 
 		public Edge GetBestShortcutBackwardFor(Node node) {
 			float thisDepth = depthScore[node];
@@ -139,7 +151,7 @@ namespace MazeGeneration
 			DebugPrint(n, 0, visited, 0);
 		}
 		public int DebugPrint(Node n) {
-			int id = nodes.IndexOf(n) + 1;
+			int id = GetId(n);
 			Console.Write(id.ToString("X"));
 			bool isTunnel = IsTunnel(n);
 			bool isTerminal = IsTerminal(n);
@@ -153,11 +165,14 @@ namespace MazeGeneration
 			int shortcutIndex = shortcutScore.FindIndex(kvp => kvp.Key == n);
 			if (shortcutIndex < 10) {
 				Edge wall = GetBestShortcutBackwardFor(n);
-				int otherRoomId = nodes.IndexOf(wall._to) + 1;
+				int otherRoomId = GetId(wall._to);
 				Console.Write($" short#{shortcutIndex}:{shortcutScore[shortcutIndex].Value}->{otherRoomId.ToString("X")}");
 			}
 			return id;
 		}
+
+		public int GetId(Node n) => nodes.IndexOf(n) + 1;
+
 		public void DebugPrint(Node n, int indent, List<Node> visited, int parentId) {
 			string parent = parentId.ToString("X");
 			for(int i = 0; i < indent; ++i) { Console.Write(" "); }
@@ -174,6 +189,75 @@ namespace MazeGeneration
 		}
 		private bool IsTerminal(Node n) => maze.terminals.IndexOf(n.nodeData) >= 0;
 		private bool IsTunnel(Node n) => maze.hallways.IndexOf(n.nodeData) >= 0;
+
+		//function reconstruct_path(cameFrom, current)
+		List<Node> reconstruct_path(Dictionary<Node,Node> cameFrom, Node current) {
+			List<Node> total_path = new List<Node>(); total_path.Add(current); //total_path := {current}
+			while(cameFrom.TryGetValue(current, out Node beforeCurrent)){//while current in cameFrom.Keys:
+				current = beforeCurrent; //current := cameFrom[current]
+				total_path.Insert(0, beforeCurrent); //total_path.prepend(current)
+			}
+			return total_path;
+		}
+
+		private static float DistanceBetween(Node a, Node b) {
+			Coord pA = a.nodeData.GetCoord();
+			Coord pB = b.nodeData.GetCoord();
+			return Coord.ManhattanDistance(pA, pB);
+		}
+
+		// A* finds a path from start to goal.
+		// h is the heuristic function. h(n) estimates the cost to reach goal from node n.
+		//function A_Star(start, goal, h)
+		public List<Node> A_Star(Node start, Node goal) {
+			// The set of discovered nodes that may need to be (re-)expanded.
+			// Initially, only the start node is known.
+			// This is usually implemented as a min-heap or priority queue rather than a hash-set.
+			
+			List<Node> openSet = new List<Node>(); openSet.Add(start); //openSet := {start}
+
+			// For node n, cameFrom[n] is the node immediately preceding it on the cheapest path from start
+			// to n currently known.
+			Dictionary<Node, Node> cameFrom = new Dictionary<Node, Node>(); //cameFrom := an empty map
+
+			// For node n, gScore[n] is the cost of the cheapest path from start to n currently known.
+			Dictionary <Node, float> gScore = new Dictionary<Node, float>(); //gScore := map with default value of Infinity
+
+			//gScore[start] := 0
+			gScore[start] = 0;
+
+			// For node n, fScore[n] := gScore[n] + h(n). fScore[n] represents our current best guess as to
+			// how short a path from start to finish can be if it goes through n.
+			Dictionary<Node, float> fScore = new Dictionary<Node, float>(); //fScore := map with default value of Infinity
+			fScore[start] = DistanceBetween(start, goal); //fScore[start] := h(start)
+
+			while (openSet.Count > 0) { //while openSet is not empty
+				// This operation can occur in O(1) time if openSet is a min-heap or a priority queue
+				Node current = openSet[openSet.Count-1]; //current := the node in openSet having the lowest fScore[] value
+				if (current == goal) {//if current = goal
+					return reconstruct_path(cameFrom, current);// return reconstruct_path(cameFrom, current)
+				}
+				openSet.RemoveAt(openSet.Count - 1); //openSet.Remove(current)
+				current.ForEachEdge(edge=>{ Node neighbor = edge._to;//for each neighbor of current
+					// d(current,neighbor) is the weight of the edge from current to neighbor
+					// tentative_gScore is the distance from start to the neighbor through current
+					float tentative_gScore = gScore[current] + edge.cost; //tentative_gScore := gScore[current] + d(current, neighbor)
+					if(!gScore.ContainsKey(neighbor) || tentative_gScore < gScore[neighbor]) {//if tentative_gScore < gScore[neighbor]
+						// This path to neighbor is better than any previous one. Record it!
+						cameFrom[neighbor] = current; //cameFrom[neighbor] := current
+						gScore[neighbor] = tentative_gScore; //gScore[neighbor] := tentative_gScore
+						fScore[neighbor] = gScore[neighbor] + DistanceBetween(neighbor, goal); //fScore[neighbor] := gScore[neighbor] + h(neighbor)
+						if(!openSet.Contains(neighbor)) {//if neighbor not in openSet
+							openSet.Add(neighbor);//openSet.add(neighbor)
+							openSet.Sort((a, b) => -fScore[a].CompareTo(fScore[b]));
+						}
+					}
+				});
+			}
+			// Open set is empty but goal was never reached
+			return null;//return failure
+		}
+
 		// TODO rate the rooms for different purposes
 			// boss monster room: deep and large. add depth to size + half of adjacent room size
 			// final treasure area: terminal or leaf room after the boss monster room

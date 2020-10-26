@@ -101,7 +101,7 @@ public class Game : GameBase {
 			mp.ForEach(c => {
 				c = c.Scale(mazeGen.tileSize);
 				Coord s = c - screenOffset;
-				Coord.ForEach(s, s + mazeGen.tileSize, p => {
+				Coord.ForEach(s + Coord.One, s + mazeGen.tileSize, p => {
 					if (screen.Contains(p)) {
 						ConsoleTile ct = screen[p];
 						ct.Back = ConsoleColor.Yellow;

@@ -11,6 +11,7 @@ namespace MazeGeneration
 		public abstract int GetPerimeter();
 		public abstract bool GetMinMax(out Coord min, out Coord max);
 		public abstract int GetArea();
+		public abstract Coord GetCoord();
 	}
 
 	public class MazePath : MazeRoomBase {
@@ -26,6 +27,12 @@ namespace MazeGeneration
 			return true;
 		}
 
+		public override Coord GetCoord() {
+			if(path.Count >= 1) {
+				return path[path.Count/2];
+			}
+			return Coord.Zero;
+		}
 		public override List<WallEdge> GetEdges(Maze m) => GetEdges(m, false);
 
 		public override List<WallEdge> GetEdges(Maze m, bool includeUnlikelyConnections) {
@@ -205,6 +212,8 @@ namespace MazeGeneration
 		public override int GetArea() { Coord s = Size; return s.col * s.row; }
 
 		public override bool GetMinMax(out Coord min, out Coord max) { min = this.min; max = this.max; return true; }
+
+		public override Coord GetCoord() => new Coord((min.X + max.X) / 2, (min.Y + max.Y) / 2);
 
 		public override List<WallEdge> GetEdges(Maze m, bool includeUnlikelyConnections) {
 			List<WallEdge> edges = new List<WallEdge>();
@@ -415,6 +424,8 @@ namespace MazeGeneration
 			}
 			return outerEdges;
 		}
+
+		public override Coord GetCoord() { return parts[0].GetCoord(); }
 
 		public override int GetArea() {
 			int sum = 0;

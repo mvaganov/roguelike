@@ -1,3 +1,5 @@
+using System;
+
 public struct Coord {
 	public short row, col;
 
@@ -136,6 +138,11 @@ public struct Coord {
 		if (pMin.row < min.row) { min.row = pMin.row; }
 		if (pMax.col > max.col) { max.col = pMax.col; }
 		if (pMax.row > max.row) { max.row = pMax.row; }
+	}
+
+	public static int ManhattanDistance(Coord a, Coord b) {
+		Coord delta = b - a;
+		return Math.Abs(delta.col) + Math.Abs(delta.row);
 	}
 }
 
