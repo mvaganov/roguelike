@@ -32,17 +32,17 @@ public class Game : GameBase {
 	protected override void Init(Coord screenSize) {
 		base.Init(screenSize);
 		maze = new Entity2D('/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
-		try {
+		//try {
 			mazeGen = new Maze(new Coord(30, 20), 2, 5);
 			mazeGen.graph.DebugPrint(Coord.Zero);
 			Console.ReadKey();
 			maze.LoadFromString(mazeGen.ToString());//maze.LoadFromFile("bigmaze.txt");
 //			MazeErosion(maze.map, blockingWalls, erodedDebris);
 			System.IO.File.WriteAllText(@"../../mazeout.txt", maze.map.ToString());
-		} catch (Exception e) {
-			Console.WriteLine(e);
-			Console.ReadKey();
-		}
+		//} catch (Exception e) {
+		//	Console.WriteLine(e);
+		//	Console.ReadKey();
+		//}
 		player = new EntityBasic('@', new Coord { row = 3, col = 8 });
 		goal = new Entity2D(new ConsoleTile('G', ConsoleColor.Green), new Coord { row = 7, col = 34}, new Coord(2,2));
 		npc = new EntityMobileObject(new ConsoleTile('M', ConsoleColor.Magenta), new Coord { row = 9, col = 12 });

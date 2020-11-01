@@ -47,6 +47,7 @@ namespace MazeGeneration {
 		public List<MazeRoomBase> allRooms = new List<MazeRoomBase>();
 		public List<MazeRoomBase> terminals = new List<MazeRoomBase>();
 		public List<MazeRoomBase> hallways = new List<MazeRoomBase>();
+		public List<MazeRoomBase> closets = new List<MazeRoomBase>();
 		public List<MazeRoomBase> aabbRooms = new List<MazeRoomBase>();
 		int deadEnds;
 		bool showMarks = true;
@@ -247,6 +248,7 @@ namespace MazeGeneration {
 				MazePath newPath = new MazePath(end, this);
 				allRooms.Add(newPath);
 				terminals.Add(newPath);
+				if(newPath.path.Count == 1) { closets.Add(newPath); }
 				MarkPath(newPath.path, allRooms.Count);
 			}
 			deadEnds = allRooms.Count;

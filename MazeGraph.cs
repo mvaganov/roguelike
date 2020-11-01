@@ -49,8 +49,42 @@ namespace MazeGeneration
 
 			Node start = GetNodeAt(Coord.Zero);
 
-			CalculateNodeWeight(start, (node, depth) => depthScore[node] = depth);
+			Dictionary<string, float> keys = null;// new Dictionary<string, float>();
 
+			//Edge e = nodes[0x48].GetEdgeTo(nodes[0x21]);
+			//if(e == null)
+			//{
+			//	throw new Exception("was not expecting that");
+			//}
+			//e.cost["final key"] = 1;
+			//if (e.IsTraversableBy(keys))
+			//{
+			//	throw new Exception("not expected");
+			//}
+
+			// discover node depth
+			nodeDepthScore = CalculateNodeWeight(start, (node, depth) => {
+				if (depth > maxDepth) maxDepth = depth;
+				if(!depthScore.TryGetValue(node, out float thisDepth) || depth < thisDepth) { return depthScore[node] = depth; }
+				return thisDepth;
+			}, keys);
+			int idealPuzzleRoomRangeMin = maxDepth / 4;
+			int idealPuzzleRoomRangeMax = maxDepth / 2;
+			int idealPuzzleRoomRangeTarget = idealPuzzleRoomRangeMax - idealPuzzleRoomRangeMin;
+			mainPuzzleItemScore = CalculateNodeWeight(start, (node, depth) => {
+				if (node.nodeData is MazePath) return 0;
+				if (depth < idealPuzzleRoomRangeMin || depth > idealPuzzleRoomRangeMax) return 0;
+				int area = node.nodeData.GetArea();
+				if(area >= 10) {
+					area += (10 - area);
+				}
+				int distance = depth;
+				if(distance > idealPuzzleRoomRangeTarget) {
+					distance += idealPuzzleRoomRangeTarget - distance;
+				}
+				float score = area + distance;
+				return score;
+			}, keys);
 			bossRoomScore = CalculateNodeWeight(start, (node, depth) => {
 				float v = node.nodeData.GetArea() + depth;
 				node.ForEachEdge(edge => {
@@ -61,17 +95,20 @@ namespace MazeGeneration
 					}
 				});
 				return v;
-			});
+			}, keys);
+
+			CalculateEndLocations(start, keys);
+
 			shortcutScore = CalculateNodeWeight(start, (node, depth) => {
 				Edge bestEdge = GetBestShortcutBackwardFor(node);
 				Node otherNode = bestEdge._to;
-				float otherDepth = depthScore[otherNode];
+				//depthScore.TryGetValue(otherNode, out float otherDepth);
 				bool isThisTerminal = IsTerminal(node);
 				bool isThisTunnel = IsTunnel(node);
 				bool isOtherTerminal = IsTerminal(otherNode);
 				bool isOtherTunnel = IsTunnel(otherNode);
-				List<Node> pathBetween = A_Star(node, otherNode);
-
+				List<Node> pathBetween = A_Star(node, otherNode, keys);
+				if(pathBetween == null) { return -1; } // values sorted biggest first. 
 				int weightModification = 0;
 				if (isThisTerminal) weightModification += 10;
 				if (isOtherTerminal) weightModification += 20;
@@ -79,20 +116,167 @@ namespace MazeGeneration
 				if (isOtherTunnel) weightModification -= 30;
 				//return depth - otherDepth + weightModification;
 				return pathBetween.Count + weightModification;
-			});
+			}, keys);
+
+			List<Node> blocks = new List<Node>();
+			Dictionary<string, Node> keyLocations = new Dictionary<string, Node>();
+			Node goal = bossRoomScore[0].Key;
+			Console.Write($"goal is at {GetName(goal)}, ");
+			Edge edgeToBlock = GetNextBlockedEdge(goal, keys);
+			Node nodeBlocked = edgeToBlock._to;
+			Console.WriteLine($"logical place for final door is {GetName(nodeBlocked)}");
+
+			for(int i = 0; i < endLocationScore.Count; ++i) {
+				Node keyLocation = endLocationScore[i].Key;
+				//Console.WriteLine($"Key could go {GetName(keyLocation)}");
+				blocks.Add(nodeBlocked);
+				if (IsNodeBehind(keyLocation, blocks, keys)) {
+					blocks.Remove(nodeBlocked);
+					//Console.WriteLine("that would be bad, it's blocked.");
+					continue;
+				}
+				string nextKey = "key" + blocks.Count;
+				Edge thisEdgeToBlock = edgeToBlock;
+
+				//Console.WriteLine("that seems like a good plan!");
+				goal = keyLocation;
+				Console.Write($"{nextKey}@{GetName(goal)}");
+				edgeToBlock = GetNextBlockedEdge(goal, keys);
+
+				if(edgeToBlock == null) {
+					Console.Write("\n");
+					break;
+				}
+				if(edgeToBlock._to == keyLocation)
+				{
+					Console.Write("-");
+					blocks.Remove(nodeBlocked);
+					continue;
+				}
+				thisEdgeToBlock.cost[nextKey] = 1;
+				keyLocations[nextKey] = keyLocation;
+
+				nodeBlocked = edgeToBlock._to;
+				Console.WriteLine($", logical place for a door is {GetName(nodeBlocked)}");
+			}
+			//for(int i = 0; i < finalLocationScore.Count; ++i) {
+			//	Edge edgeToBlock = GetNextBlockedEdge(goal, keys);
+			//	Node nodeBlocked = edgeToBlock._to;
+			//	blocks.Add(nodeBlocked);
+			//	if (IsNodeBehind(goal, blocks, keys)) {
+			//		blocks.Remove(nodeBlocked);
+			//		continue;
+			//	}
+			//	string nextKey = "key" + blocks.Count;
+			//	edgeToBlock.cost[nextKey] = 1;
+			//	Node nodeWithKey = finalLocationScore[i].Key;
+			//	keyLocations[nextKey] = nodeWithKey;
+			//	Console.WriteLine($"goal {GetName(goal)} blocked at {GetName(nodeBlocked)}, {nextKey} is at {GetName(nodeWithKey)}");
+			//	goal = nodeWithKey;
+			//}
 		}
+
+		public void CalculateEndLocations(Node start, Dictionary<string,float> keys) {
+			endLocationScore = CalculateNodeWeight(start, (node, depth) => {
+				//if (maze.terminals.IndexOf(node.nodeData) < 0) return 0; // only terminals
+				if (node.GetNeighborCount() > 1) return 0; // only terminals
+				float bestBossScoreSoFar = float.NegativeInfinity;
+				int areaTraversed = 0, area, bestArea = 0;
+				// back travel till there is a fork, remembering the best bossRoomScore along the way, and the total area traversed till that bossroom.
+				List<Node> traveledPath = new List<Node>();
+				Node cursor = node;
+				do {
+					traveledPath.Add(cursor);
+					area = cursor.nodeData.GetArea();
+					if(area > bestArea) { bestArea = area; }
+					areaTraversed += area;
+					float thisBossScore = bossRoomScore.Find(kvp => kvp.Key == cursor).Value;
+					if (thisBossScore > bestBossScoreSoFar) { bestBossScoreSoFar = thisBossScore; }
+					cursor = cursor.GetNeighborNotIncluding(0, traveledPath);
+					if(cursor != null && cursor.GetNeighborCountNotIncluding(traveledPath) > 1) {
+						break;
+					}
+				} while (cursor != null);
+				// subtract the total area traversed from the boss room score
+				return bestBossScoreSoFar;
+			}, keys);
+		}
+
+		Edge GetNextBlockedEdge(Node node, Dictionary<string,float> keys) {
+			Node prev = node, next;
+			int counter = 0;
+			do
+			{
+				next = PreviousRoom(prev, keys);
+				if (next == null) return null;
+				// find the location of the next door. travel along
+				int validNeighbors = 0;
+				List<Edge> validEdges = next.GetValidEdges(keys);
+				for(int i = 0; i < validEdges.Count; ++i) {
+					Node neighbor = validEdges[i]._to;
+					if(maze.closets.IndexOf(neighbor.nodeData) < 0) { ++validNeighbors; }
+				}
+				if (validNeighbors > 2)
+				{
+					break;
+				}
+				prev = next;
+				if (++counter > 1000) { throw new Exception("looks like an infinite loop"); }
+			} while (true);
+			//Console.Write("door should be between " + GetName(next) + " and " + GetName(prev));
+			return next.EdgeTo(prev);
+		}
+
+		bool IsNodeBehind(Node testNode, List<Node> possibleGateKeepers, Dictionary<string, float> keys) {
+			for(int i = 0; i < possibleGateKeepers.Count; ++i) {
+				if (IsNodeBehind(testNode, possibleGateKeepers[i], keys)) return true;
+			}
+			return false;
+		}
+		bool IsNodeBehind(Node testNode, Node possibleGateKeeper, Dictionary<string,float> keys) {
+			depthScore.TryGetValue(testNode, out float testDepth);
+			depthScore.TryGetValue(possibleGateKeeper, out float gateDepth);
+			Node prev = testNode;
+			do {
+				if (prev == possibleGateKeeper) { return true; }
+				if (testDepth < gateDepth) return false;
+				prev = PreviousRoom(prev, keys);
+				--testDepth;
+			} while (prev != null);
+			return false;
+		}
+
+		Node PreviousRoom(Node cursor, Dictionary<string,float> keys) {
+			float depth = depthScore[cursor];
+			List<Edge> validEdges = cursor.GetValidEdges(keys);
+			for(int i = 0; i < validEdges.Count; ++i) {
+				Node next = validEdges[i]._to;
+				float neighborDepthScore = depthScore[next];
+				if(neighborDepthScore < depth) {
+					return next;
+				}
+			}
+			return null;
+		}
+
 		Dictionary<Node, float> depthScore = new Dictionary<Node, float>();
+		int maxDepth = 0;
 		List<KeyValuePair<Node, float>> 
-			bossRoomScore, // best place for an epic encounter
+			nodeDepthScore,
+			bossRoomScore, // best place for an epic final encounter
 			shortcutScore, // best shortcut period
-			shortcutBackScore;
+			endLocationScore, // the last tile, the true 'end point', with the final goal item
+			mainPuzzleItemScore;
 
 		public Edge GetBestShortcutBackwardFor(Node node) {
+			//Console.WriteLine(GetName(node));
 			float thisDepth = depthScore[node];
 			List<Edge> allEdges = GenerateEdgesFor(node, true);
 			allEdges.Sort((a, b) => {
-				float aScore = thisDepth - depthScore[a._to];
-				float bScore = thisDepth - depthScore[b._to];
+				depthScore.TryGetValue(a._to, out float aScore);
+				depthScore.TryGetValue(b._to, out float bScore);
+				aScore = thisDepth - aScore;
+				bScore = thisDepth - bScore;
 				return -aScore.CompareTo(bScore);
 			});
 			return allEdges[0];
@@ -128,20 +312,49 @@ namespace MazeGeneration
 			return n.edges;
 		}
 
-		public List<KeyValuePair<Node, float>> CalculateNodeWeight(Node start, Func<Node, int, float> weightCalculation) {
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="start">where weight calculations start from</param>
+		/// <param name="weightCalculation">what the weight calculation actually is</param>
+		/// <param name="keys">what 'keys' are available to pass through locked edges. null to ignore special edge costs</param>
+		/// <returns></returns>
+		public List<KeyValuePair<Node, float>> CalculateNodeWeight(Node start, Func<Node, int, float> weightCalculation, Dictionary<string, float> keys) {
 			Dictionary<Node, float> ledger = new Dictionary<Node, float>();
-			CalculateNodeWeight(start, 0, weightCalculation, ledger);
+			ledger[start] = weightCalculation(start, 0);
+			BfsWightCalculation(start, weightCalculation, ledger, keys);
 			List<KeyValuePair<Node, float>> list = ledger.ToList();
 			list.Sort((KeyValuePair<Node, float> pair1, KeyValuePair<Node, float> pair2) => -pair1.Value.CompareTo(pair2.Value));
 			return list;
 		}
 
-		public void CalculateNodeWeight(Node node, int depth, Func<Node,int,float> weightCalculation, Dictionary<Node, float> ledger) {
-			ledger[node] = weightCalculation(node, depth);
-			for(int i = 0; i < node.edges.Count; ++i) {
-				Node next = node.edges[i]._to;
-				if (ledger.ContainsKey(next)) { continue; }
-				CalculateNodeWeight(next, depth + 1, weightCalculation, ledger);
+		public void BfsWightCalculation(Node node, Func<Node,int,float> weightCalculation, Dictionary<Node, float> ledger, Dictionary<string,float> keys) {
+			List<Node> Q = new List<Node>();
+			int currentDepth = 0, nodesAtCurrentDepth = 1, nodesAtNextDepth = 0;
+			Q.Add(node);
+			ledger[node] = weightCalculation(node, currentDepth);
+			//Console.Write(currentDepth + ": " + GetName(node)+"\n");
+			while (Q.Count > 0) {
+				Node v = Q[0];
+				Q.RemoveAt(0);
+				for (int i = 0; i < v.edges.Count; ++i) {
+					Edge edge = v.edges[i];
+					if (keys != null && !edge.IsTraversableBy(keys)) continue;
+					Node w = edge._to;
+					if(!ledger.TryGetValue(w, out float weight)) {
+						ledger[w] = weightCalculation(w, currentDepth+1);
+						Q.Add(w);
+						nodesAtNextDepth++;
+						//Console.Write(GetName(w) + " ");
+					}
+				}
+				--nodesAtCurrentDepth;
+				if(nodesAtCurrentDepth <= 0) {
+					currentDepth++;
+					nodesAtCurrentDepth = nodesAtNextDepth;
+					nodesAtNextDepth = 0;
+					//Console.Write("\n"+currentDepth + ": ");
+				}
 			}
 		}
 
@@ -161,17 +374,25 @@ namespace MazeGeneration
 			if (isTerminal) { Console.Write("End"); } else if (isTunnel) { Console.Write("Tunnel"); } else if (isRoom) { Console.Write("Room"); }
 			Console.Write(" a"+area+" ");
 			int bossIndex = bossRoomScore.FindIndex(kvp => kvp.Key == n);
-			if (bossIndex < 10) { Console.Write($" boss#{bossIndex}:{bossRoomScore[bossIndex].Value}"); }
+			if (bossIndex >= 0 && bossIndex < 10) { Console.Write($" boss#{bossIndex}:{bossRoomScore[bossIndex].Value}"); }
 			int shortcutIndex = shortcutScore.FindIndex(kvp => kvp.Key == n);
-			if (shortcutIndex < 10) {
+			if (shortcutIndex >= 0 && shortcutIndex < 10) {
 				Edge wall = GetBestShortcutBackwardFor(n);
-				int otherRoomId = GetId(wall._to);
-				Console.Write($" short#{shortcutIndex}:{shortcutScore[shortcutIndex].Value}->{otherRoomId.ToString("X")}");
+				Console.Write($" short#{shortcutIndex}:{shortcutScore[shortcutIndex].Value}->{GetName(wall._to)}");
+			}
+			int puzzleItemIndex = mainPuzzleItemScore.FindIndex(kvp => kvp.Key == n);
+			if(puzzleItemIndex >= 0 && puzzleItemIndex < 10 && mainPuzzleItemScore[puzzleItemIndex].Value != 0) {
+				Console.Write($" I#{puzzleItemIndex}:{mainPuzzleItemScore[puzzleItemIndex].Value}");
+			}
+			int finalIndex = endLocationScore.FindIndex(kvp => kvp.Key == n);
+			if(finalIndex >= 0 && finalIndex < 10) {
+				Console.Write($" Fi${finalIndex}:{endLocationScore[finalIndex].Value}");
 			}
 			return id;
 		}
 
 		public int GetId(Node n) => nodes.IndexOf(n) + 1;
+		public string GetName(Node n) => GetId(n).ToString("X2");
 
 		public void DebugPrint(Node n, int indent, List<Node> visited, int parentId) {
 			string parent = parentId.ToString("X");
@@ -209,7 +430,7 @@ namespace MazeGeneration
 		// A* finds a path from start to goal.
 		// h is the heuristic function. h(n) estimates the cost to reach goal from node n.
 		//function A_Star(start, goal, h)
-		public List<Node> A_Star(Node start, Node goal) {
+		public List<Node> A_Star(Node start, Node goal, Dictionary<string,float> keys) {
 			// The set of discovered nodes that may need to be (re-)expanded.
 			// Initially, only the start node is known.
 			// This is usually implemented as a min-heap or priority queue rather than a hash-set.
@@ -241,7 +462,9 @@ namespace MazeGeneration
 				current.ForEachEdge(edge=>{ Node neighbor = edge._to;//for each neighbor of current
 					// d(current,neighbor) is the weight of the edge from current to neighbor
 					// tentative_gScore is the distance from start to the neighbor through current
-					float tentative_gScore = gScore[current] + edge.cost; //tentative_gScore := gScore[current] + d(current, neighbor)
+					if(edge.cost.Count > 0 && !edge.IsTraversableBy(keys)) return;
+					if(!edge.cost.TryGetValue("", out float standardCost)) { standardCost = 1; }
+					float tentative_gScore = gScore[current] + standardCost; //tentative_gScore := gScore[current] + d(current, neighbor)
 					if(!gScore.ContainsKey(neighbor) || tentative_gScore < gScore[neighbor]) {//if tentative_gScore < gScore[neighbor]
 						// This path to neighbor is better than any previous one. Record it!
 						cameFrom[neighbor] = current; //cameFrom[neighbor] := current
@@ -258,10 +481,11 @@ namespace MazeGeneration
 			return null;//return failure
 		}
 
+		// TODO create a PathTravelled algorithm, which keeps a queue of subsequent forks to travel. first, plot a path for the early-treasure room. then plot a path for a tunnel, which was blocked till now. then from that tunnel forward, pick a next-leaf to travel to, where a key of some kind is. then back to another tunnel, and repeat.
+
 		// TODO rate the rooms for different purposes
-			// boss monster room: deep and large. add depth to size + half of adjacent room size
+			// early-treasure room, where the special dungeon puzzle-solving artifact is: early-to-mid leaf
 			// final treasure area: terminal or leaf room after the boss monster room
-			// location for a sweet puzzle solving item: leaf room
 			// barrier
 				// locked door: tunnels
 				// puzzle room: if it is adjacent to a large room
