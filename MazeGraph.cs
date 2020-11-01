@@ -119,14 +119,16 @@ namespace MazeGeneration
 			}, keys);
 
 			List<Node> blocks = new List<Node>();
+			Dictionary<string,Edge> blockedEdges = new Dictionary<string,Edge>();
 			Dictionary<string, Node> keyLocations = new Dictionary<string, Node>();
 			Node goal = bossRoomScore[0].Key;
-			Console.Write($"goal is at {GetName(goal)}, ");
-			Edge edgeToBlock = GetNextBlockedEdge(goal, keys);
+			Console.Write($"goal is at {GetName(goal)}\n");
+			Edge edgeToBlock = GetNextBlockedEdge(goal, keys), whereTheDoorIs;
 			Node nodeBlocked = edgeToBlock._to;
-			Console.WriteLine($"logical place for final door is {GetName(nodeBlocked)}");
+			Console.Write($"door@{GetName(nodeBlocked)}, ");
+			whereTheDoorIs = edgeToBlock;
 
-			for(int i = 0; i < endLocationScore.Count; ++i) {
+			for (int i = 0; i < endLocationScore.Count; ++i) {
 				Node keyLocation = endLocationScore[i].Key;
 				//Console.WriteLine($"Key could go {GetName(keyLocation)}");
 				blocks.Add(nodeBlocked);
@@ -153,11 +155,26 @@ namespace MazeGeneration
 					blocks.Remove(nodeBlocked);
 					continue;
 				}
+				blockedEdges[nextKey] = whereTheDoorIs;
 				thisEdgeToBlock.cost[nextKey] = 1;
 				keyLocations[nextKey] = keyLocation;
+				
+
+				// CalculateEndLocations(start, keys); i = 0;
 
 				nodeBlocked = edgeToBlock._to;
-				Console.WriteLine($", logical place for a door is {GetName(nodeBlocked)}");
+				Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
+				whereTheDoorIs = edgeToBlock;
+			}
+			int kvpIndex = 0;
+			foreach(KeyValuePair<string,Node> kvp in keyLocations) {
+				Coord keyLoc = kvp.Value.nodeData.GetCoord();
+				maze.marks.SetAt(keyLoc, 0xa0 + kvpIndex);
+				List<Coord> doorLocs = (blockedEdges[kvp.Key].edgeData as MazePath).path;
+				for(int i = 0; i < doorLocs.Count; ++i) {
+					maze.marks.SetAt(doorLocs[i], 0xa0 + kvpIndex);
+				}
+				kvpIndex++;
 			}
 			//for(int i = 0; i < finalLocationScore.Count; ++i) {
 			//	Edge edgeToBlock = GetNextBlockedEdge(goal, keys);
@@ -377,8 +394,8 @@ namespace MazeGeneration
 			if (bossIndex >= 0 && bossIndex < 10) { Console.Write($" boss#{bossIndex}:{bossRoomScore[bossIndex].Value}"); }
 			int shortcutIndex = shortcutScore.FindIndex(kvp => kvp.Key == n);
 			if (shortcutIndex >= 0 && shortcutIndex < 10) {
-				Edge wall = GetBestShortcutBackwardFor(n);
-				Console.Write($" short#{shortcutIndex}:{shortcutScore[shortcutIndex].Value}->{GetName(wall._to)}");
+				//Edge wall = GetBestShortcutBackwardFor(n);
+				Console.Write($" short#{shortcutIndex}:{shortcutScore[shortcutIndex].Value}");//->{GetName(wall._to)}
 			}
 			int puzzleItemIndex = mainPuzzleItemScore.FindIndex(kvp => kvp.Key == n);
 			if(puzzleItemIndex >= 0 && puzzleItemIndex < 10 && mainPuzzleItemScore[puzzleItemIndex].Value != 0) {
