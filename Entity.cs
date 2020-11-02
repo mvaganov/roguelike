@@ -1,21 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-//public class GameObject {
-
-//	public List<GameObject> childObjects = null;
-//	public int ChildCount => childObjects?.Count ?? 0;
-//	public GameObject GetChild(int i) => childObjects[i];
-//	public void ForEachChild(Action<GameObject> action) { childObjects.ForEach(c => action(c)); }
-//	public bool ForEachChild(Func<GameObject,bool> condition) {
-//		for(int i = 0; i < childObjects.Count; ++i) {
-//			GameObject child = childObjects[i];
-//			if (condition(child)) { return true; }
-//		}
-//		return false;
-//	}
-//}
-
 public interface IDrawable : IRect {
 	void Draw(ConsoleTile[,] map, Coord offset);
 }

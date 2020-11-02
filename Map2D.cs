@@ -1,4 +1,4 @@
-public class Map2D {
+public class Map2D : IRect {
 	private ConsoleTile[,] map;
 	public int transparentLetter = -1;
 
@@ -130,4 +130,8 @@ public class Map2D {
 		});
 		return sb.ToString();
 	}
+
+	public Rect GetRect() { return new Rect(0, 0, Width, Height); }
+
+	public Coord GetPosition() { return Coord.Zero; }
 }

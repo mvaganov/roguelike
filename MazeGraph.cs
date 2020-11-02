@@ -120,10 +120,11 @@ namespace MazeGeneration
 
 			List<Node> blocks = new List<Node>();
 			Node goal = bossRoomScore[0].Key;
-			Console.Write($"goal is at {GetName(goal)}\n");
+			finalGoal = (endLocationScore[0].Key.nodeData as MazePath).path[0];
+			//Console.Write($"goal is at {GetName(goal)}\n");
 			Edge edgeToBlock = GetNextBlockedEdge(goal, keys), whereTheDoorIs;
 			Node nodeBlocked = edgeToBlock._to;
-			Console.Write($"door@{GetName(nodeBlocked)}, ");
+			//Console.Write($"door@{GetName(nodeBlocked)}, ");
 			whereTheDoorIs = edgeToBlock;
 
 			for (int i = 0; i < endLocationScore.Count; ++i) {
@@ -140,16 +141,16 @@ namespace MazeGeneration
 
 				//Console.WriteLine("that seems like a good plan!");
 				goal = possibleKeyLocation;
-				Console.Write($"{nextKey}@{GetName(goal)}");
+				//Console.Write($"{nextKey}@{GetName(goal)}");
 				edgeToBlock = GetNextBlockedEdge(goal, keys);
 
 				if(edgeToBlock == null) {
-					Console.Write("\n");
+				//	Console.Write("\n");
 					break;
 				}
 				if(edgeToBlock._to == possibleKeyLocation)
 				{
-					Console.Write("-");
+				//	Console.Write("-");
 					blocks.Remove(nodeBlocked);
 					continue;
 				}
@@ -162,7 +163,7 @@ namespace MazeGeneration
 				CalculateEndLocations(start, keys); i = 0;
 
 				nodeBlocked = edgeToBlock._to;
-				Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
+				//Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
 				whereTheDoorIs = edgeToBlock;
 			}
 			//int kvpIndex = 0;
@@ -269,6 +270,7 @@ namespace MazeGeneration
 			endLocationScore, // the last tile, the true 'end point', with the final goal item
 			mainPuzzleItemScore;
 		public Dictionary<string,KeyValuePair<Node, Edge>> keysAndDoors = new Dictionary<string,KeyValuePair<Node, Edge>>();
+		public Coord finalGoal;
 
 		public Edge GetBestShortcutBackwardFor(Node node) {
 			//Console.WriteLine(GetName(node));

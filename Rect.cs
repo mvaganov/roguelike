@@ -47,7 +47,7 @@ public struct Rect : IPosition, IRect {
 	public bool IsIntersect(Rect other) { return IsRectIntersect(min, max, other.min, other.max); }
 
 	public static Rect Sum(Rect a, Rect b) {
-		Coord.ExpandRectangle(a.min, a.max, ref b.min, ref b.max);
+		b.Expand(a);
 		return b;
 	}
 
@@ -88,4 +88,20 @@ public struct Rect : IPosition, IRect {
 		return IsRectContained(nMin, nMin + nSize, hMin, hMin + hSize);
 	}
 
+	public static bool ExpandRectangle(Coord pMin, Coord pMax, ref Coord min, ref Coord max) {
+		bool change = false;
+		if (pMin.col < min.col) { min.col = pMin.col; change = true; }
+		if (pMin.row < min.row) { min.row = pMin.row; change = true; }
+		if (pMax.col > max.col) { max.col = pMax.col; change = true; }
+		if (pMax.row > max.row) { max.row = pMax.row; change = true; }
+		return change;
+	}
+
+	public bool Expand(Rect p) {
+		return ExpandRectangle(p.min, p.max, ref min, ref max);
+	}
+
+	public bool Expand(Coord p) {
+		return ExpandRectangle(p, p, ref min, ref max);
+	}
 }

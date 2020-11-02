@@ -35,7 +35,7 @@ public class Game : GameBase {
 		maze = new Entity2D("maze", '/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
 		//try {
 			mazeGen = new Maze(new Coord(30, 20), 2, 5);
-			mazeGen.graph.DebugPrint(Coord.Zero);
+		//	mazeGen.graph.DebugPrint(Coord.Zero);
 			maze.LoadFromString(mazeGen.ToString());//maze.LoadFromFile("bigmaze.txt");
 //			MazeErosion(maze.map, blockingWalls, erodedDebris);
 			System.IO.File.WriteAllText(@"../../mazeout.txt", maze.map.ToString());
@@ -59,7 +59,6 @@ public class Game : GameBase {
 				}
 			};
 			entities.Add(key);
-			//EntityComposite entireDoor = new EntityComposite();
 			List<Coord> doorPositions = (e.edgeData as MazePath).path;
 			for(int i = 0; i < doorPositions.Count; ++i) {
 				position = doorPositions[i].Scale(mazeGen.tileSize);
@@ -74,24 +73,25 @@ public class Game : GameBase {
 					if(triggeringEntity == player) {
 						if(keys.TryGetValue(name, out float keyCount)) {
 							Destroy(door);
-							Console.WriteLine($"using {name}");
+							Console.Write($"\rusing {name}");
 						} else {
-							Console.WriteLine($"need {name}");
+							Console.Write($"\rneed {name}");
 						}
+						Console.ReadKey();
+						Console.Write("\r" + new string(' ', name.Length+8) + "\r");
+
 					}
 				};
 				colliders.Add(door);
 				entities.Add(door);
-				//entireDoor.AddPart(door);
 			}
-			//entities.Add(entireDoor);
-			//collisionLayer.Add(entireDoor);
-			Console.WriteLine($"added {name} to {key.position}, and door to {string.Join(", ",doorPositions)}");
+			//Console.WriteLine($"added {name} to {key.position}, and door to {string.Join(", ",doorPositions)}");
 		}
-		Console.ReadKey();
+		//Console.ReadKey();
 
 		player = new EntityBasic("player", '@', new Coord { row = 3, col = 8 });
-		goal = new Entity2D("goal", new ConsoleTile('G', ConsoleColor.Green), new Coord { row = 7, col = 34}, new Coord(2,2));
+		goal = new Entity2D("goal", new ConsoleTile('G', ConsoleColor.Green), 
+			mazeGen.graph.finalGoal.Scale(mazeGen.tileSize)+Coord.One, new Coord(2,1));
 		npc = new EntityMobileObject("npc", new ConsoleTile('M', ConsoleColor.Magenta), new Coord { row = 9, col = 12 });
 		entities.Add(goal);
 		entities.Add(player);

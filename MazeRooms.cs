@@ -57,7 +57,7 @@ namespace MazeGeneration
 			min = max = path[0];
 			for (int i = 0; i < path.Count; ++i) {
 				Coord p = path[i];
-				Coord.ExpandRectangle(p, p, ref min, ref max);
+				Rect.ExpandRectangle(p, p, ref min, ref max);
 			}
 			return true;
 		}
@@ -444,7 +444,7 @@ namespace MazeGeneration
 			parts[0].GetMinMax(out min, out max);
 			for(int i = 1; i < parts.Count; ++i) {
 				parts[i].GetMinMax(out Coord partMin, out Coord partMax);
-				Coord.ExpandRectangle(partMin, partMax, ref min, ref max);
+				Rect.ExpandRectangle(partMin, partMax, ref min, ref max);
 			}
 			return true;
 		}

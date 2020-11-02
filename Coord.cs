@@ -53,11 +53,11 @@ public struct Coord {
 		row = (row < min.row) ? min.row : (row > max.row) ? max.row : row;
 	}
 
-	public static Coord SizeOf(System.Array map) {
+	public static Coord SizeOf(Array map) {
 		return new Coord { row = (short)map.GetLength(0), col = (short)map.GetLength(1) };
 	}
 
-	public static void ForEach(Coord min, Coord max, System.Action<Coord> action) {
+	public static void ForEach(Coord min, Coord max, Action<Coord> action) {
 		Coord cursor = min;
 		for(cursor.row = min.row; cursor.row < max.row; ++cursor.row) {
 			for(cursor.col = min.col; cursor.col < max.col; ++cursor.col) {
@@ -66,7 +66,7 @@ public struct Coord {
 		}
 	}
 
-	public void ForEach(System.Action<Coord> action) => ForEach(Zero, this, action);
+	public void ForEach(Action<Coord> action) => ForEach(Zero, this, action);
 
 	/// <summary>
 	/// stops iterating as soon as action returns true
@@ -75,7 +75,7 @@ public struct Coord {
 	/// <param name="max"></param>
 	/// <param name="action"></param>
 	/// <returns>true if action returned true even once</returns>
-	public static bool ForEach(Coord min, Coord max, System.Func<Coord, bool> action) {
+	public static bool ForEach(Coord min, Coord max, Func<Coord, bool> action) {
 		Coord cursor = min;
 		for(cursor.row = min.row; cursor.row < max.row; ++cursor.row) {
 			for(cursor.col = min.col; cursor.col < max.col; ++cursor.col) {
@@ -85,9 +85,9 @@ public struct Coord {
 		return false;
 	}
 
-	public bool ForEach(System.Func<Coord, bool> action) => ForEach(Zero, this, action);
+	public bool ForEach(Func<Coord, bool> action) => ForEach(Zero, this, action);
 
-	public static void ForEachInclusive(Coord start, Coord end, System.Action<Coord> action) {
+	public static void ForEachInclusive(Coord start, Coord end, Action<Coord> action) {
 		Coord cursor = start;
 		cursor.row = start.row;
 		do {
@@ -100,13 +100,6 @@ public struct Coord {
 			if (cursor.row == end.row) { break; }
 			if (cursor.row < end.row) { ++cursor.row; } else { --cursor.row; }
 		} while (true);
-	}
-
-	public static void ExpandRectangle(Coord pMin, Coord pMax, ref Coord min, ref Coord max) {
-		if (pMin.col < min.col) { min.col = pMin.col; }
-		if (pMin.row < min.row) { min.row = pMin.row; }
-		if (pMax.col > max.col) { max.col = pMax.col; }
-		if (pMax.row > max.row) { max.row = pMax.row; }
 	}
 
 	public static int ManhattanDistance(Coord a, Coord b) {
