@@ -49,8 +49,11 @@ namespace MazeGeneration {
 		public List<MazeRoomBase> hallways = new List<MazeRoomBase>();
 		public List<MazeRoomBase> closets = new List<MazeRoomBase>();
 		public List<MazeRoomBase> aabbRooms = new List<MazeRoomBase>();
+		public Dictionary<string, List<Coord>> lockedDoors = new Dictionary<string, List<Coord>>();
+		public Dictionary<string, Coord> keyLocation = new Dictionary<string, Coord>();
+
 		int deadEnds;
-		bool showMarks = true;
+		bool showMarks = false;//true;
 
 		public MazeGraph graph = new MazeGraph();
 

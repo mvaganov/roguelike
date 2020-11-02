@@ -20,10 +20,11 @@ public class Graph<NData,EData> {
 			}
 			return count;
 		}
-		public Node GetNeighborNotIncluding(int index, List<Node> ignored) {
+		public Node GetNeighborNotIncluding(int index, List<Node> ignored, Dictionary<string,float> keys) {
 			int count = 0;
-			for(int i = 0; i < edges.Count; ++i) {
-				Node n = edges[i]._to;
+			List<Edge> validEdges = GetValidEdges(keys);
+			for(int i = 0; i < validEdges.Count; ++i) {
+				Node n = validEdges[i]._to;
 				if (ignored.IndexOf(n) < 0) {
 					if(count == index) { return n; }
 					++count;

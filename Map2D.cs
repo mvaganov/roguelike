@@ -1,5 +1,6 @@
 public class Map2D {
 	private ConsoleTile[,] map;
+	public int transparentLetter = -1;
 
 	public Map2D() => SetSize(Coord.Zero);
 
@@ -70,12 +71,15 @@ public class Map2D {
 	public bool IsSize(Coord size) { return Height == size.row && Width == size.col; }
 
 	public void Draw(ConsoleTile[,] drawBuffer, Coord position) {
-		if (!Coord.GetSizeRectIntersect(Coord.Zero, Coord.SizeOf(drawBuffer), position, Coord.SizeOf(map), out Coord min, out Coord size)) {
+		if (!Rect.GetSizeRectIntersect(Coord.Zero, Coord.SizeOf(drawBuffer), position, Coord.SizeOf(map), out Coord min, out Coord size)) {
 			return;
 		}
 		Coord.ForEach(min, min+size, c => {
 			int y = c.row - position.row, x = c.col - position.col;
-			drawBuffer[c.row, c.col] = map[y, x];
+			ConsoleTile ct = map[y, x];
+			if (transparentLetter == -1 || ct.letter != transparentLetter) {
+				drawBuffer[c.row, c.col] = map[y, x];
+			}
 		});
 	}
 

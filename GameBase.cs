@@ -4,7 +4,15 @@ using System.Collections.Generic;
 public class GameBase {
 	protected bool isRunning;
 	protected ConsoleKeyInfo keyIn;
+	/// <summary>
+	/// drawing, updading entities
+	/// </summary>
 	protected List<EntityBase> entities = new List<EntityBase>();
+	/// <summary>
+	/// colliding entities
+	/// </summary>
+	protected List<EntityBase> colliders = new List<EntityBase>();
+	protected List<EntityBase> toDestroy = new List<EntityBase>();
 	protected Map2D screen, backBuffer;
 	protected Coord screenOffset = Coord.Zero;
 	protected Coord scrollMin = Coord.Zero, scrollMax, scrollBorder = new Coord(6,3), scrollJump = new Coord(8,4);
@@ -57,6 +65,9 @@ public class GameBase {
 		keyIn = Console.ReadKey();
 	}
 
+	protected List<Coord> colliderOldPosition = new List<Coord>();
+	protected List<int> collided = new List<int>();
+
 	protected virtual void Update() {
 		switch (keyIn.KeyChar) {
 			case (char)27: isRunning = false; return;
@@ -66,10 +77,39 @@ public class GameBase {
 			case 'l': screenOffset.col += scrollJump.col; break;
 		}
 		screenOffset = ClampToScrollSpace(screenOffset);
+		while (colliderOldPosition.Count < colliders.Count) { colliderOldPosition.Add(Coord.Zero); }
+		for (int i = 0; i < colliders.Count; ++i) { colliderOldPosition[i] = colliders[i].position; }
 		for (int i = 0; i < entities.Count; ++i) {
 			entities[i].Update(this);
 		}
+		// check if collision happened, and trigger collision functions
+		for (int i = 0; i < colliders.Count; ++i) {
+			EntityBase entity = colliders[i];
+			if (entity.position != colliderOldPosition[i]) {
+				int hitIndex = colliders.IndexOfIntersect(entity, null);
+				if (hitIndex >= 0) {
+					collided.Add(i);
+					//Console.Write(entity.name + " collided with "+collisionLayer[hitIndex].name);
+					EntityBase wasHit = colliders[hitIndex];
+					wasHit.onTrigger?.Invoke(entity);
+					//if()
+					//Console.ReadKey();
+				}
+			}
+		}
+		if(collided.Count > 0) {
+			collided.ForEach(i => colliders[i].position = colliderOldPosition[i]);
+			collided.Clear();
+		}
+		while(toDestroy.Count > 0) {
+			EntityBase onChoppingBlock = toDestroy[0];
+			entities.Remove(onChoppingBlock);
+			colliders.Remove(onChoppingBlock);
+			toDestroy.RemoveAt(0);
+		}
 	}
+
+	public void Destroy(EntityBase entity) { toDestroy.Add(entity); }
 
 	public Coord ClampToScrollSpace(Coord coord) {
 		coord.Clamp(scrollMin, scrollMax);

@@ -1,5 +1,7 @@
 using System;
 
+public interface IPosition { Coord GetPosition(); }
+
 public struct Coord {
 	public short row, col;
 
@@ -53,39 +55,6 @@ public struct Coord {
 
 	public static Coord SizeOf(System.Array map) {
 		return new Coord { row = (short)map.GetLength(0), col = (short)map.GetLength(1) };
-	}
-
-	public static bool IsRectIntersect(Coord aMin, Coord aMax, Coord bMin, Coord bMax) {
-		return aMin.col < bMax.col && bMin.col < aMax.col && aMin.row < bMax.row && bMin.row < aMax.row;
-	}
-
-	public static bool IsSizeRectIntersect(Coord aMin, Coord aSize, Coord bMin, Coord bSize) {
-		return IsRectIntersect(aMin, aMin+aSize, bMin, bMin+bSize);
-	}
-
-	public static bool GetRectIntersect(Coord aMin, Coord aMax, Coord bMin, Coord bMax, out Coord oMin, out Coord oMax) {
-		oMin = new Coord { col = System.Math.Max(aMin.col, bMin.col), row = System.Math.Max(aMin.row, bMin.row) };
-		oMax = new Coord { col = System.Math.Min(aMax.col, bMax.col), row = System.Math.Min(aMax.row, bMax.row) };
-		return oMin.col < oMax.col && oMin.row < oMax.row;
-	}
-
-	public static bool GetSizeRectIntersect(Coord aMin, Coord aSize, Coord bMin, Coord bSize, out Coord oMin, out Coord oSize) {
-		bool result = GetRectIntersect(aMin, aMin + aSize, bMin, bMin + bSize, out oMin, out oSize);
-		oSize -= oMin;
-		return result;
-	}
-
-	/// <param name="nMin">needle min corner</param>
-	/// <param name="nMax">needle max corner</param>
-	/// <param name="hMin">haystack min corner</param>
-	/// <param name="hMax">haystack max corner</param>
-	/// <returns></returns>
-	public static bool IsRectContained(Coord nMin, Coord nMax, Coord hMin, Coord hMax) {
-		return nMin.col >= hMin.col && hMax.col >= nMax.col && nMin.row >= hMin.row && hMax.row >= nMax.row;
-	}
-
-	public static bool IsSizeRectContained(Coord nMin, Coord nSize, Coord hMin, Coord hSize) {
-		return IsRectContained(nMin, nMin + nSize, hMin, hMin + hSize);
 	}
 
 	public static void ForEach(Coord min, Coord max, System.Action<Coord> action) {

@@ -119,8 +119,6 @@ namespace MazeGeneration
 			}, keys);
 
 			List<Node> blocks = new List<Node>();
-			Dictionary<string,Edge> blockedEdges = new Dictionary<string,Edge>();
-			Dictionary<string, Node> keyLocations = new Dictionary<string, Node>();
 			Node goal = bossRoomScore[0].Key;
 			Console.Write($"goal is at {GetName(goal)}\n");
 			Edge edgeToBlock = GetNextBlockedEdge(goal, keys), whereTheDoorIs;
@@ -129,10 +127,10 @@ namespace MazeGeneration
 			whereTheDoorIs = edgeToBlock;
 
 			for (int i = 0; i < endLocationScore.Count; ++i) {
-				Node keyLocation = endLocationScore[i].Key;
+				Node possibleKeyLocation = endLocationScore[i].Key;
 				//Console.WriteLine($"Key could go {GetName(keyLocation)}");
 				blocks.Add(nodeBlocked);
-				if (IsNodeBehind(keyLocation, blocks, keys)) {
+				if (IsNodeBehind(possibleKeyLocation, blocks, keys)) {
 					blocks.Remove(nodeBlocked);
 					//Console.WriteLine("that would be bad, it's blocked.");
 					continue;
@@ -141,7 +139,7 @@ namespace MazeGeneration
 				Edge thisEdgeToBlock = edgeToBlock;
 
 				//Console.WriteLine("that seems like a good plan!");
-				goal = keyLocation;
+				goal = possibleKeyLocation;
 				Console.Write($"{nextKey}@{GetName(goal)}");
 				edgeToBlock = GetNextBlockedEdge(goal, keys);
 
@@ -149,54 +147,40 @@ namespace MazeGeneration
 					Console.Write("\n");
 					break;
 				}
-				if(edgeToBlock._to == keyLocation)
+				if(edgeToBlock._to == possibleKeyLocation)
 				{
 					Console.Write("-");
 					blocks.Remove(nodeBlocked);
 					continue;
 				}
-				blockedEdges[nextKey] = whereTheDoorIs;
+				keysAndDoors[nextKey] = new KeyValuePair<Node,Edge>(possibleKeyLocation,whereTheDoorIs);
+				//lockedDoors[nextKey] = whereTheDoorIs;
+				//keyLocation[nextKey] = possibleKeyLocation;
 				thisEdgeToBlock.cost[nextKey] = 1;
-				keyLocations[nextKey] = keyLocation;
 				
 
-				// CalculateEndLocations(start, keys); i = 0;
+				CalculateEndLocations(start, keys); i = 0;
 
 				nodeBlocked = edgeToBlock._to;
 				Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
 				whereTheDoorIs = edgeToBlock;
 			}
-			int kvpIndex = 0;
-			foreach(KeyValuePair<string,Node> kvp in keyLocations) {
-				Coord keyLoc = kvp.Value.nodeData.GetCoord();
-				maze.marks.SetAt(keyLoc, 0xa0 + kvpIndex);
-				List<Coord> doorLocs = (blockedEdges[kvp.Key].edgeData as MazePath).path;
-				for(int i = 0; i < doorLocs.Count; ++i) {
-					maze.marks.SetAt(doorLocs[i], 0xa0 + kvpIndex);
-				}
-				kvpIndex++;
-			}
-			//for(int i = 0; i < finalLocationScore.Count; ++i) {
-			//	Edge edgeToBlock = GetNextBlockedEdge(goal, keys);
-			//	Node nodeBlocked = edgeToBlock._to;
-			//	blocks.Add(nodeBlocked);
-			//	if (IsNodeBehind(goal, blocks, keys)) {
-			//		blocks.Remove(nodeBlocked);
-			//		continue;
+			//int kvpIndex = 0;
+			//foreach(KeyValuePair<string,Node> kvp in keyLocation) {
+			//	Coord keyLoc = kvp.Value.nodeData.GetCoord();
+			//	maze.marks.SetAt(keyLoc, 0xa0 + kvpIndex);
+			//	List<Coord> doorLocs = (lockedDoors[kvp.Key].edgeData as MazePath).path;
+			//	for(int i = 0; i < doorLocs.Count; ++i) {
+			//		maze.marks.SetAt(doorLocs[i], 0xa0 + kvpIndex);
 			//	}
-			//	string nextKey = "key" + blocks.Count;
-			//	edgeToBlock.cost[nextKey] = 1;
-			//	Node nodeWithKey = finalLocationScore[i].Key;
-			//	keyLocations[nextKey] = nodeWithKey;
-			//	Console.WriteLine($"goal {GetName(goal)} blocked at {GetName(nodeBlocked)}, {nextKey} is at {GetName(nodeWithKey)}");
-			//	goal = nodeWithKey;
+			//	kvpIndex++;
 			//}
 		}
 
 		public void CalculateEndLocations(Node start, Dictionary<string,float> keys) {
 			endLocationScore = CalculateNodeWeight(start, (node, depth) => {
 				//if (maze.terminals.IndexOf(node.nodeData) < 0) return 0; // only terminals
-				if (node.GetNeighborCount() > 1) return 0; // only terminals
+				if (node.GetNeighborCount(keys) > 1) return 0; // only terminals
 				float bestBossScoreSoFar = float.NegativeInfinity;
 				int areaTraversed = 0, area, bestArea = 0;
 				// back travel till there is a fork, remembering the best bossRoomScore along the way, and the total area traversed till that bossroom.
@@ -209,7 +193,7 @@ namespace MazeGeneration
 					areaTraversed += area;
 					float thisBossScore = bossRoomScore.Find(kvp => kvp.Key == cursor).Value;
 					if (thisBossScore > bestBossScoreSoFar) { bestBossScoreSoFar = thisBossScore; }
-					cursor = cursor.GetNeighborNotIncluding(0, traveledPath);
+					cursor = cursor.GetNeighborNotIncluding(0, traveledPath, keys);
 					if(cursor != null && cursor.GetNeighborCountNotIncluding(traveledPath) > 1) {
 						break;
 					}
@@ -284,6 +268,7 @@ namespace MazeGeneration
 			shortcutScore, // best shortcut period
 			endLocationScore, // the last tile, the true 'end point', with the final goal item
 			mainPuzzleItemScore;
+		public Dictionary<string,KeyValuePair<Node, Edge>> keysAndDoors = new Dictionary<string,KeyValuePair<Node, Edge>>();
 
 		public Edge GetBestShortcutBackwardFor(Node node) {
 			//Console.WriteLine(GetName(node));

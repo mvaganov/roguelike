@@ -1,19 +1,37 @@
 using System;
 using System.Collections.Generic;
 
-public abstract class EntityBase {
+//public class GameObject {
+
+//	public List<GameObject> childObjects = null;
+//	public int ChildCount => childObjects?.Count ?? 0;
+//	public GameObject GetChild(int i) => childObjects[i];
+//	public void ForEachChild(Action<GameObject> action) { childObjects.ForEach(c => action(c)); }
+//	public bool ForEachChild(Func<GameObject,bool> condition) {
+//		for(int i = 0; i < childObjects.Count; ++i) {
+//			GameObject child = childObjects[i];
+//			if (condition(child)) { return true; }
+//		}
+//		return false;
+//	}
+//}
+
+public interface IDrawable : IRect {
+	void Draw(ConsoleTile[,] map, Coord offset);
+}
+
+public abstract class EntityBase : IDrawable {
+	public string name;
 	public Coord position;
 
-	public Action<EntityBase, GameBase> onUpdate;
+	public Action onUpdate;
+	public Action<EntityBase> onTrigger;
+	public virtual void Update(GameBase game) { onUpdate?.Invoke(); }
 
 	public abstract void Draw(ConsoleTile[,] map, Coord offset);
+	public virtual Coord GetPosition() => position;
 	public abstract Coord GetSize();
-
-	public virtual void Update(GameBase game) 	{
-		if(onUpdate != null) {
-			onUpdate.Invoke(this, game);
-		}
-	}
+	public virtual Rect GetRect() => new Rect(position, position + GetSize());
 
 	public static readonly IDictionary<char, Coord> defaultMoves = new Dictionary<char, Coord>() {
 		['w'] = Coord.Up, ['a'] = Coord.Left, ['s'] = Coord.Down, ['d'] = Coord.Right,
@@ -34,7 +52,8 @@ public class EntityBasic : EntityBase {
 
 	public override Coord GetSize() => Coord.One;
 
-	public EntityBasic(ConsoleTile icon, Coord position) {
+	public EntityBasic(string name, ConsoleTile icon, Coord position) {
+		this.name = name;
 		this.position = position;
 		this.icon = icon;
 	}
@@ -49,5 +68,5 @@ public class EntityBasic : EntityBase {
 public class EntityMobileObject : EntityBasic {
 	public char currentMove;
 
-	public EntityMobileObject(ConsoleTile icon, Coord position) : base(icon, position) { }
+	public EntityMobileObject(string name, ConsoleTile icon, Coord position) : base(name, icon, position) { }
 }

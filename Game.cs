@@ -23,6 +23,7 @@ public class Game : GameBase {
 	string blockingWalls = "#+-|", erodedDebris = "    `   '  . .,;:=";
 	Coord mazeSize;
 	Maze mazeGen;
+	Dictionary<string,float> keys = new Dictionary<string, float>();
 
 	RoguelikeVisibility playerVisibilityAlgorithm;
 	System.Collections.BitArray playerScreenVisibility, playerSeenIt;
@@ -31,11 +32,10 @@ public class Game : GameBase {
 
 	protected override void Init(Coord screenSize) {
 		base.Init(screenSize);
-		maze = new Entity2D('/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
+		maze = new Entity2D("maze", '/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
 		//try {
 			mazeGen = new Maze(new Coord(30, 20), 2, 5);
 			mazeGen.graph.DebugPrint(Coord.Zero);
-			Console.ReadKey();
 			maze.LoadFromString(mazeGen.ToString());//maze.LoadFromFile("bigmaze.txt");
 //			MazeErosion(maze.map, blockingWalls, erodedDebris);
 			System.IO.File.WriteAllText(@"../../mazeout.txt", maze.map.ToString());
@@ -43,13 +43,61 @@ public class Game : GameBase {
 		//	Console.WriteLine(e);
 		//	Console.ReadKey();
 		//}
-		player = new EntityBasic('@', new Coord { row = 3, col = 8 });
-		goal = new Entity2D(new ConsoleTile('G', ConsoleColor.Green), new Coord { row = 7, col = 34}, new Coord(2,2));
-		npc = new EntityMobileObject(new ConsoleTile('M', ConsoleColor.Magenta), new Coord { row = 9, col = 12 });
 		entities.Add(maze);
+		foreach (var kvp in mazeGen.graph.keysAndDoors) {
+			string name = kvp.Key;
+			char lastLetter = name[name.Length - 1];
+			MazeGraph.Node n = kvp.Value.Key;
+			MazeGraph.Edge e = kvp.Value.Value;
+			Coord position = n.nodeData.GetCoord().Scale(mazeGen.tileSize) + Coord.One;
+			EntityBasic key = new EntityBasic(name, new ConsoleTile(lastLetter, ConsoleColor.Yellow), position);
+			key.onUpdate = () => {
+				if(key.IsIntersecting(player, null)) {
+					keys.TryGetValue(name, out float keyCount);
+					keys[name] = keyCount + 1;
+					entities.Remove(key);
+				}
+			};
+			entities.Add(key);
+			//EntityComposite entireDoor = new EntityComposite();
+			List<Coord> doorPositions = (e.edgeData as MazePath).path;
+			for(int i = 0; i < doorPositions.Count; ++i) {
+				position = doorPositions[i].Scale(mazeGen.tileSize);
+				Entity2D door = new Entity2D("door"+name, new ConsoleTile(lastLetter, ConsoleColor.Black, ConsoleColor.DarkYellow), position, mazeGen.tileSize);
+				door.GetMinMax(out Coord min, out Coord max);
+				Coord.ForEach(min, max, c => {
+					if(blockingWalls.IndexOf(maze[c]) >= 0) {
+						door[c] = '\0';
+					}
+				});
+				door.onTrigger = triggeringEntity => {
+					if(triggeringEntity == player) {
+						if(keys.TryGetValue(name, out float keyCount)) {
+							Destroy(door);
+							Console.WriteLine($"using {name}");
+						} else {
+							Console.WriteLine($"need {name}");
+						}
+					}
+				};
+				colliders.Add(door);
+				entities.Add(door);
+				//entireDoor.AddPart(door);
+			}
+			//entities.Add(entireDoor);
+			//collisionLayer.Add(entireDoor);
+			Console.WriteLine($"added {name} to {key.position}, and door to {string.Join(", ",doorPositions)}");
+		}
+		Console.ReadKey();
+
+		player = new EntityBasic("player", '@', new Coord { row = 3, col = 8 });
+		goal = new Entity2D("goal", new ConsoleTile('G', ConsoleColor.Green), new Coord { row = 7, col = 34}, new Coord(2,2));
+		npc = new EntityMobileObject("npc", new ConsoleTile('M', ConsoleColor.Magenta), new Coord { row = 9, col = 12 });
 		entities.Add(goal);
 		entities.Add(player);
 		entities.Add(npc);
+		colliders.Add(player);
+		colliders.Add(npc);
 
 		Dictionary<ConsoleKey, char> arrowKeyConversion = new Dictionary<ConsoleKey, char>() {
 			{ConsoleKey.LeftArrow, 'a' },
@@ -57,7 +105,7 @@ public class Game : GameBase {
 			{ConsoleKey.RightArrow,'d' },
 			{ConsoleKey.DownArrow, 's' },
 		};
-		player.onUpdate += (EntityBase self_player, GameBase gameBase) => {
+		player.onUpdate += () => {
 			if(!arrowKeyConversion.TryGetValue(keyIn.Key, out char userMoveInput)) {
 				userMoveInput = keyIn.KeyChar;
 			}
@@ -68,15 +116,15 @@ public class Game : GameBase {
 			if (userMoveInput == ' ' && fireballs.Count < 3) {
 				ShootFireball(player);
 			}
-			if (player.Intersects(goal)) {
+			if (player.IsIntersecting(goal)) {
 				PlayerWins();
 			}
 		};
-		npc.onUpdate += (self_npc,g) => {
+		npc.onUpdate += () => {
 			EntityRandomMove(npc);
-			npc.CollidesWith(fireballs, (coord,me,fball) => true, () => {
+			if(npc.IndexOfIntersecting(fireballs, null) >= 0) {
 				entities.Remove(npc);
-			});
+			}
 		};
 		mazeSize = maze.GetSize();
 		scrollMax = mazeSize + maze.position - screenSize;
@@ -88,7 +136,7 @@ public class Game : GameBase {
 	protected override void Draw() {
 		DrawEntities();
 		ColorScreenByPlayerVisibility();
-		DrawRoomExits();
+		//DrawRoomExits();
 		Render();
 		Console.Write(fireballs.Count);
 	}
@@ -115,7 +163,9 @@ public class Game : GameBase {
 
 	public bool PlayerVisionBlockedAt(Coord screenCoord) {
 		if (!screenCoord.IsWithin(screen.Size)) return true;
-		return playerCanSeeThrough.IndexOf(screen[screenCoord].letter) < 0;
+		ConsoleTile ct = screen[screenCoord];
+		if (ct.back != (byte)Console.BackgroundColor) return true;
+		return playerCanSeeThrough.IndexOf(ct.letter) < 0;
 	}
 
 	public void SetPlayerHasSeen(Coord c, bool value) {
@@ -155,6 +205,8 @@ public class Game : GameBase {
 
 	// could be replaced with: coord => maze[coord] == '#'
 	public bool IsMazeWall(Coord coord) { return blockingWalls.IndexOf(maze[coord]) >= 0; }
+
+	public bool IsMazeWall(Rect rect) { return rect.ForEach(IsMazeWall); }
 
 	public void MazeErosion(Map2D map, string erodable, string erosionOrder) {
 		for (int i = 0; i < erosionOrder.Length; ++i) {
@@ -199,19 +251,21 @@ public class Game : GameBase {
 			entity.position = oldPosition;
 			return true;
 		}
-		return entity.CollidesWith(maze, IsMazeWall, () => {
+		if(entity.IsIntersecting(maze, IsMazeWall)) {
 			entity.position = oldPosition;
-		});
+			return true;
+		}
+		return false;
 	}
 
 	public void ShootFireball(EntityBase player) {
 		char shootDirection = Console.ReadKey().KeyChar;
 		if (!player.moves.ContainsKey(shootDirection)) return;
-		EntityMobileObject fireball = new EntityMobileObject(new ConsoleTile('*', ConsoleColor.Red), player.position);
+		EntityMobileObject fireball = new EntityMobileObject("fireball", new ConsoleTile('*', ConsoleColor.Red), player.position);
 		fireball.currentMove = shootDirection;
-		fireball.onUpdate += (self_fireball, game) => {
+		fireball.onUpdate += () => {
 			fireball.Move(fireball.currentMove);
-			if (!screen.Contains(fireball.position) || fireball.Intersects(maze, IsMazeWall)) {
+			if (!screen.Contains(fireball.position) || fireball.IsIntersecting(maze, IsMazeWall)) {
 				fireballs.Remove(fireball);
 				entities.Remove(fireball);
 			}
