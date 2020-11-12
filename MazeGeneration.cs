@@ -53,7 +53,7 @@ namespace MazeGeneration {
 		public Dictionary<string, Coord> keyLocation = new Dictionary<string, Coord>();
 
 		int deadEnds;
-		bool showMarks = false;//true;
+		bool showMarks = false;//true;//
 
 		public MazeGraph graph = new MazeGraph();
 
@@ -219,6 +219,64 @@ namespace MazeGeneration {
 			}
 			result.Append(firstLine);
 			return result.ToString();
+		}
+
+		public List<EntityBase> GetKeys() {
+			List<EntityBase> keys = new List<EntityBase>();
+			foreach (var kvp in graph.keysAndDoors)
+			{
+				string name = kvp.Key;
+				char lastLetter = name[name.Length - 1];
+				MazeGraph.Node n = kvp.Value.Key;
+				MazeGraph.Edge e = kvp.Value.Value;
+				Coord position = n.nodeData.GetCoord().Scale(tileSize) + Coord.One;
+				EntityBasic key = new EntityBasic(name, new ConsoleTile(lastLetter, ConsoleColor.Yellow), position);
+				keys.Add(key);
+			}
+			return keys;
+		}
+		public List<EntityBase> GetDoors() {
+			List<EntityBase> doors = new List<EntityBase>();
+			foreach (var kvp in graph.keysAndDoors) {
+				string name = kvp.Key;
+				char lastLetter = name[name.Length - 1];
+				MazeGraph.Node n = kvp.Value.Key;
+				MazeGraph.Edge e = kvp.Value.Value;
+				List<Coord> doorPositions = (e.edgeData as MazePath).path;
+				for (int i = 0; i < doorPositions.Count; ++i) {
+					Coord position = doorPositions[i].Scale(tileSize);
+					Entity2D door = new Entity2D("door" + name, new ConsoleTile(lastLetter, ConsoleColor.Black, ConsoleColor.DarkYellow), position, tileSize);
+					door.GetMinMax(out Coord min, out Coord max);
+					doors.Add(door);
+				}
+			}
+			return doors;
+		}
+
+		public string GetSerializedEntities(string blockingWalls, Entity2D maze) {
+			List<EntityBase> keys = GetKeys();
+			List<EntityBase> doors = GetDoors();
+			StringBuilder sb = new StringBuilder();
+			for(int i = 0; i < keys.Count; ++i) {
+				string n = keys[i].name;
+				sb.Append("key " + n + " " + n[n.Length-1] + " " + (int)ConsoleColor.Yellow + " -1 " + keys[i].position + "\n");
+			}
+			for(int i = 0; i < doors.Count; ++i) {
+				Coord p = doors[i].position;
+				Entity2D door2d = doors[i] as Entity2D;
+				string n = keys[i].name;
+				sb.Append("door " + n + " " + n[n.Length-1] +" "+ (int)ConsoleColor.Black + " " + (int)ConsoleColor.DarkYellow + " " + door2d.position + " " + door2d.GetSize());
+				door2d.ForEach(c => {
+					if (blockingWalls.IndexOf(maze[c]) >= 0) { door2d[c] = '\0'; } else {
+						sb.Append(" "+c);
+					}
+				});
+				sb.Append("\n");
+			}
+			sb.Append("goal goal g " + (int)ConsoleColor.Green+ " -1 " +(graph.finalGoal.Scale(tileSize)+Coord.One)+" "+new Coord(2,1) + "\n");
+			sb.Append("npc monster M " + (int)ConsoleColor.Magenta + " -1 "+ new Coord(9, 12) + "\n");
+			sb.Append("player yourname @ " + (int)ConsoleColor.White + " -1 " + (Coord.One) + "\n");
+			return sb.ToString();
 		}
 
 		public int GetEdgeCount(Coord c) {

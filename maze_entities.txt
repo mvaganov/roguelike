@@ -1,0 +1,5 @@
+key key1 1 14 -1 67,35
+door key1 1 0 6 69,28 3,2 70,28 71,28 70,29 71,29
+goal goal g 10 -1 64,33 2,1
+npc monster M 13 -1 9,12
+player yourname @ 15 -1 1,1

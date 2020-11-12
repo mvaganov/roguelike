@@ -33,9 +33,11 @@ public abstract class EntityBase : IDrawable {
 }
 
 public class EntityBasic : EntityBase {
-	private ConsoleTile icon;
+	public ConsoleTile icon;
 
 	public override Coord GetSize() => Coord.One;
+
+	public EntityBasic() { }
 
 	public EntityBasic(string name, ConsoleTile icon, Coord position) {
 		this.name = name;
@@ -52,6 +54,6 @@ public class EntityBasic : EntityBase {
 
 public class EntityMobileObject : EntityBasic {
 	public char currentMove;
-
+	public EntityMobileObject() { }
 	public EntityMobileObject(string name, ConsoleTile icon, Coord position) : base(name, icon, position) { }
 }

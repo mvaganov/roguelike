@@ -6,7 +6,7 @@ using MazeGeneration;
 public class Game : GameBase {
 	public static int Main(string[] args) {
 		Game g = new Game();
-		g.Init(new Coord { row = 15, col = 40});
+		g.Init(new Coord (40,15));
 		while(g.IsRunning()) {
 			g.Draw();
 			g.UserInput();
@@ -17,115 +17,37 @@ public class Game : GameBase {
 	}
 
 	Entity2D maze;
-	EntityBase player, goal, npc;
-	List<EntityBase> fireballs = new List<EntityBase>();
-	Random rng = new Random(0);
-	string blockingWalls = "#+-|", erodedDebris = "    `   '  . .,;:=";
+	EntityBase player, goal;
+	List<EntityBase> playerFireballs = new List<EntityBase>();
+	Dictionary<string, float> playerKeys = new Dictionary<string, float>();
+	string blockingWalls = "#+-|";
 	Coord mazeSize;
 	Maze mazeGen;
-	Dictionary<string,float> keys = new Dictionary<string, float>();
+	Random rng = new Random(0);
 
 	RoguelikeVisibility playerVisibilityAlgorithm;
 	System.Collections.BitArray playerScreenVisibility, playerSeenIt;
 	int playerSightRange = 15;
-	string playerCanSeeThrough = " `'.,*\'\"01234567890ABCDEFG";
+	string playerCanSeeThrough = " `'.,*\'\"01234567890ABCDEFG"; // see through if there is no non-default background
 
 	protected override void Init(Coord screenSize) {
 		base.Init(screenSize);
-		maze = new Entity2D("maze", '/');//, new Coord(2,1), new Coord { row = 10, col = 30 });
+		maze = new Entity2D("maze", '/');
 		//try {
-			mazeGen = new Maze(new Coord(30, 20), 2, 5);
-		//	mazeGen.graph.DebugPrint(Coord.Zero);
-			maze.LoadFromString(mazeGen.ToString());//maze.LoadFromFile("bigmaze.txt");
-//			MazeErosion(maze.map, blockingWalls, erodedDebris);
-			System.IO.File.WriteAllText(@"../../mazeout.txt", maze.map.ToString());
+			mazeGen = new Maze(new Coord(30, 20), 0, 2);
+			mazeGen.graph.DebugPrint(Coord.Zero);
+			string theMap = mazeGen.ToString();
+			maze.LoadFromString(theMap);
+			string serializedEntities = mazeGen.GetSerializedEntities(blockingWalls, maze);
+			System.IO.File.WriteAllText(@"../../maze_map.txt", theMap);
+			System.IO.File.WriteAllText(@"../../maze_entities.txt", serializedEntities);
 		//} catch (Exception e) {
 		//	Console.WriteLine(e);
 		//	Console.ReadKey();
 		//}
 		entities.Add(maze);
-		foreach (var kvp in mazeGen.graph.keysAndDoors) {
-			string name = kvp.Key;
-			char lastLetter = name[name.Length - 1];
-			MazeGraph.Node n = kvp.Value.Key;
-			MazeGraph.Edge e = kvp.Value.Value;
-			Coord position = n.nodeData.GetCoord().Scale(mazeGen.tileSize) + Coord.One;
-			EntityBasic key = new EntityBasic(name, new ConsoleTile(lastLetter, ConsoleColor.Yellow), position);
-			key.onUpdate = () => {
-				if(key.IsIntersecting(player, null)) {
-					keys.TryGetValue(name, out float keyCount);
-					keys[name] = keyCount + 1;
-					entities.Remove(key);
-				}
-			};
-			entities.Add(key);
-			List<Coord> doorPositions = (e.edgeData as MazePath).path;
-			for(int i = 0; i < doorPositions.Count; ++i) {
-				position = doorPositions[i].Scale(mazeGen.tileSize);
-				Entity2D door = new Entity2D("door"+name, new ConsoleTile(lastLetter, ConsoleColor.Black, ConsoleColor.DarkYellow), position, mazeGen.tileSize);
-				door.GetMinMax(out Coord min, out Coord max);
-				Coord.ForEach(min, max, c => {
-					if(blockingWalls.IndexOf(maze[c]) >= 0) {
-						door[c] = '\0';
-					}
-				});
-				door.onTrigger = triggeringEntity => {
-					if(triggeringEntity == player) {
-						if(keys.TryGetValue(name, out float keyCount)) {
-							Destroy(door);
-							Console.Write($"\rusing {name}");
-						} else {
-							Console.Write($"\rneed {name}");
-						}
-						Console.ReadKey();
-						Console.Write("\r" + new string(' ', name.Length+8) + "\r");
+		LoadEntities(serializedEntities);
 
-					}
-				};
-				colliders.Add(door);
-				entities.Add(door);
-			}
-			//Console.WriteLine($"added {name} to {key.position}, and door to {string.Join(", ",doorPositions)}");
-		}
-		//Console.ReadKey();
-
-		player = new EntityBasic("player", '@', new Coord { row = 3, col = 8 });
-		goal = new Entity2D("goal", new ConsoleTile('G', ConsoleColor.Green), 
-			mazeGen.graph.finalGoal.Scale(mazeGen.tileSize)+Coord.One, new Coord(2,1));
-		npc = new EntityMobileObject("npc", new ConsoleTile('M', ConsoleColor.Magenta), new Coord { row = 9, col = 12 });
-		entities.Add(goal);
-		entities.Add(player);
-		entities.Add(npc);
-		colliders.Add(player);
-		colliders.Add(npc);
-
-		Dictionary<ConsoleKey, char> arrowKeyConversion = new Dictionary<ConsoleKey, char>() {
-			{ConsoleKey.LeftArrow, 'a' },
-			{ConsoleKey.UpArrow,   'w' },
-			{ConsoleKey.RightArrow,'d' },
-			{ConsoleKey.DownArrow, 's' },
-		};
-		player.onUpdate += () => {
-			if(!arrowKeyConversion.TryGetValue(keyIn.Key, out char userMoveInput)) {
-				userMoveInput = keyIn.KeyChar;
-			}
-			if (player.MoveDirection(userMoveInput) != Coord.Zero) {
-				EntityMoveBlockedByMaze(player, userMoveInput);
-				KeepVisiblity(player.position);
-			}
-			if (userMoveInput == ' ' && fireballs.Count < 3) {
-				ShootFireball(player);
-			}
-			if (player.IsIntersecting(goal)) {
-				PlayerWins();
-			}
-		};
-		npc.onUpdate += () => {
-			EntityRandomMove(npc);
-			if(npc.IndexOfIntersecting(fireballs, null) >= 0) {
-				entities.Remove(npc);
-			}
-		};
 		mazeSize = maze.GetSize();
 		scrollMax = mazeSize + maze.position - screenSize;
 		playerSeenIt = new System.Collections.BitArray(mazeSize.X * mazeSize.Y);
@@ -133,57 +55,144 @@ public class Game : GameBase {
 		playerVisibilityAlgorithm = new MilazzoVisibility(PlayerVisionBlockedAt, MarkVisibleByPlayer, ManhattanDistance);
 	}
 
+	public void LoadEntities(string serializedEntities) {
+		List<EntityBase> keyList = new List<EntityBase>();
+		List<EntityBase> doorList = new List<EntityBase>();
+		List<EntityBase> npcs = new List<EntityBase>();
+		string[] lines = serializedEntities.Split('\n');
+		for(int i = 0; i < lines.Length; ++i) {
+			string[] line = lines[i].Split(' ');
+			switch (line[0]) {
+				case "player": player = CreatePlayer(line);     break;
+				case "npc":	   npcs.Add(CreateNPC(line));       break;
+				case "key":    keyList.Add(CreateKey(line));    break;
+				case "door":   doorList.Add(CreateDoor(line));  break;
+				case "goal":   goal = CreateArea(line);         break;
+			}
+		}
+		if (player != null) {
+			entities.Add(player);
+			colliders.Add(player);
+		}
+		if (goal != null) {
+			entities.Add(goal);
+		}
+		entities.AddRange(npcs);
+		colliders.AddRange(npcs);
+		entities.AddRange(keyList);
+		entities.AddRange(doorList);
+		colliders.AddRange(doorList);
+	}
+
+	public EntityBasic CreatePlayer(string[] line) {
+		EntityBasic player = PopulateEntityFrom(line, new EntityBasic()) as EntityBasic;
+		player.onUpdate += () => {
+			if (!playerMoveArrowKeyConversion.TryGetValue(keyIn.Key, out char userMoveInput)) {
+				userMoveInput = keyIn.KeyChar;
+			}
+			if (player.MoveDirection(userMoveInput) != Coord.Zero) {
+				EntityMoveBlockedByMaze(player, userMoveInput);
+				SetScrollToKeepVisiblity(player.position);
+			}
+			if (userMoveInput == ' ' && playerFireballs.Count < 3) {
+				ShootFireball(player);
+			}
+			if (player.IsIntersecting(goal)) {
+				PlayerWins();
+			}
+		};
+		return player;
+	}
+	private static Dictionary<ConsoleKey, char> playerMoveArrowKeyConversion = new Dictionary<ConsoleKey, char>() {
+		{ConsoleKey.LeftArrow, 'a' },
+		{ConsoleKey.UpArrow,   'w' },
+		{ConsoleKey.RightArrow,'d' },
+		{ConsoleKey.DownArrow, 's' },
+	};
+
+	public EntityBasic CreateKey(string[] line) {
+		EntityBasic key = PopulateEntityFrom(line, new EntityBasic()) as EntityBasic;
+		key.onUpdate = () => {
+			if (key.IsIntersecting(player, null)) {
+				playerKeys.TryGetValue(key.name, out float keyCount);
+				playerKeys[key.name] = keyCount + 1;
+				Destroy(key);
+			}
+		};
+		return key;
+	}
+
+	public EntityMobileObject CreateNPC(string[] line) {
+		EntityMobileObject npc = PopulateEntityFrom(line, new EntityMobileObject()) as EntityMobileObject;
+		npc.onUpdate += () => {
+			EntityRandomMove(npc);
+			if (npc.IndexOfIntersecting(playerFireballs, null) >= 0) {
+				Destroy(npc);
+			}
+		};
+		return npc;
+	}
+
+	public Entity2D CreateDoor(string[] line) {
+		Entity2D door = PopulateEntityFrom(line, new Entity2D()) as Entity2D;
+		door.onTrigger = triggeringEntity => {
+			if(triggeringEntity == player) {
+				if(playerKeys.TryGetValue(door.name, out float keyCount)) {
+					Destroy(door);
+					Console.Write($"\rusing {door.name}");
+				} else {
+					Console.Write($"\rneed {door.name}");
+				}
+				Console.ReadKey();
+				Console.Write("\r" + new string(' ', door.name.Length+8) + "\r");
+			}
+		};
+		return door;
+	}
+
+	public Entity2D CreateArea(string[] line) {
+		return PopulateEntityFrom(line, new Entity2D()) as Entity2D;
+	}
+
+	private EntityBase PopulateEntityFrom(string[] line, EntityBase entity) {
+		entity.name = line[1];
+		char letter = line[2][0];
+		int fore = int.Parse(line[3]);
+		if (fore < 0) fore = ConsoleTile.DefaultTile.fore;
+		int back = int.Parse(line[4]);
+		if (back < 0) back = ConsoleTile.DefaultTile.back;
+		entity.position = EntityEntryToCoord(line[5]);
+		if (entity is EntityBasic eb) {
+			eb.icon = new ConsoleTile(letter, (ConsoleColor)fore, (ConsoleColor)back);
+		} else if(entity is Entity2D e2d) {
+			Coord size = EntityEntryToCoord(line[6]);
+			if (line.Length > 7) {
+				ConsoleTile ct = new ConsoleTile(letter, (ConsoleColor)fore, (ConsoleColor)back);
+				e2d.map = new Map2D('\0', size);
+				e2d.map.transparentLetter = '\0';
+				for (int i = 7; i < line.Length; ++i) {
+					Coord pos = EntityEntryToCoord(line[i]);
+					e2d[pos] = ct;
+				}
+			} else {
+				e2d.map = new Map2D(letter, size);
+			}
+		} else {
+			throw new Exception($"unable to populate {entity.GetType()} with {string.Join(", ", line)}");
+		}
+		return entity;
+	}
+
+	private Coord EntityEntryToCoord(string text) {
+		string[] pos = text.Split(',');
+		return new Coord(int.Parse(pos[0]), int.Parse(pos[1]));
+	}
+
 	protected override void Draw() {
 		DrawEntities();
 		ColorScreenByPlayerVisibility();
-		//DrawRoomExits();
 		Render();
-		Console.Write(fireballs.Count);
 	}
-
-	public void DrawRoomExits() {
-		IList<MazeGraph.Edge> edges = mazeGen.GetEdgesForNodeAt(player.position);
-		for(int e = 0; e < edges.Count; ++e) {
-			MazeGraph.Edge edge = edges[e];
-			MazePath mp = edge.edgeData as MazePath;
-			mp.ForEach(c => {
-				c = c.Scale(mazeGen.tileSize);
-				Coord s = c - screenOffset;
-				Coord.ForEach(s + Coord.One, s + mazeGen.tileSize, p => {
-					if (screen.Contains(p)) {
-						ConsoleTile ct = screen[p];
-						ct.Back = ConsoleColor.Yellow;
-						screen[p] = ct;
-					}
-				});
-			});
-		}
-	}
-
-
-	public bool PlayerVisionBlockedAt(Coord screenCoord) {
-		if (!screenCoord.IsWithin(screen.Size)) return true;
-		ConsoleTile ct = screen[screenCoord];
-		if (ct.back != (byte)Console.BackgroundColor) return true;
-		return playerCanSeeThrough.IndexOf(ct.letter) < 0;
-	}
-
-	public void SetPlayerHasSeen(Coord c, bool value) {
-		int i = c.Y * mazeSize.X + c.X; if (i < 0 || i >= playerSeenIt.Count) return;
-		playerSeenIt.Set(i, value);
-	}
-	public bool GetPlayerHasSeen(Coord c) {
-		int i = c.Y * mazeSize.X + c.X; if (i < 0 || i >= playerSeenIt.Count) return false;
-		return playerSeenIt.Get(i);
-	}
-
-	public void MarkVisibleByPlayer(Coord screenCoord) {
-		if (!screenCoord.IsWithin(screen.Size)) return;
-		playerScreenVisibility.Set(screenCoord.Y * screen.Width + screenCoord.X, true);
-		SetPlayerHasSeen(screenCoord + screenOffset, true);
-	}
-
-	public static int ManhattanDistance(Coord delta) => Math.Abs(delta.X) + Math.Abs(delta.Y);
 
 	protected void ColorScreenByPlayerVisibility() {
 		playerScreenVisibility.SetAll(false);
@@ -203,36 +212,37 @@ public class Game : GameBase {
 		});
 	}
 
+	public bool PlayerVisionBlockedAt(Coord screenCoord) {
+		if (!screenCoord.IsWithin(screen.Size)) return true;
+		ConsoleTile ct = screen[screenCoord];
+		if (ct.back != (byte)Console.BackgroundColor) return true;
+		return playerCanSeeThrough.IndexOf(ct.letter) < 0;
+	}
+
+	public void SetPlayerHasSeen(Coord c, bool value) {
+		int i = c.Y * mazeSize.X + c.X; if (i < 0 || i >= playerSeenIt.Count) return;
+		playerSeenIt.Set(i, value);
+	}
+
+	public bool GetPlayerHasSeen(Coord c) {
+		int i = c.Y * mazeSize.X + c.X; if (i < 0 || i >= playerSeenIt.Count) return false;
+		return playerSeenIt.Get(i);
+	}
+
+	public void MarkVisibleByPlayer(Coord screenCoord) {
+		if (!screenCoord.IsWithin(screen.Size)) return;
+		playerScreenVisibility.Set(screenCoord.Y * screen.Width + screenCoord.X, true);
+		SetPlayerHasSeen(screenCoord + screenOffset, true);
+	}
+
+	public static int ManhattanDistance(Coord delta) => Math.Abs(delta.X) + Math.Abs(delta.Y);
+
 	// could be replaced with: coord => maze[coord] == '#'
 	public bool IsMazeWall(Coord coord) { return blockingWalls.IndexOf(maze[coord]) >= 0; }
 
 	public bool IsMazeWall(Rect rect) { return rect.ForEach(IsMazeWall); }
 
-	public void MazeErosion(Map2D map, string erodable, string erosionOrder) {
-		for (int i = 0; i < erosionOrder.Length; ++i) {
-			ErodeMaze(maze.map, erodable, new ConsoleTile(erosionOrder[i], ConsoleColor.DarkGray));
-		}
-	}
-
-	public void ErodeMaze(Map2D map, string wallsToReplace, ConsoleTile replacement) {
-		byte[,] neighborCount = new byte[map.Height, map.Width];
-		Coord s = map.Size;
-		Coord.ForEach(Coord.Zero, s, coord => {
-			if (wallsToReplace.IndexOf(map[coord].letter) < 0) return;
-			byte n = 0;
-			if (coord.row > 0       && wallsToReplace.IndexOf(map[coord + Coord.Up]) >= 0) { ++n; }
-			if (coord.col > 0       && wallsToReplace.IndexOf(map[coord + Coord.Left]) >= 0) { ++n; }
-			if (coord.row < s.row-1 && wallsToReplace.IndexOf(map[coord + Coord.Down]) >= 0) { ++n; }
-			if (coord.col < s.col-1 && wallsToReplace.IndexOf(map[coord + Coord.Right]) >= 0) { ++n; }
-			neighborCount[coord.row, coord.col] = n;
-		});
-		Coord.ForEach(Coord.Zero, s, coord => {
-			if (neighborCount[coord.row, coord.col] == 1) {
-				map[coord] = replacement;
-			}
-		});
-	}
-
+	// TODO implement a collision matrix for characters
 	public void EntityRandomMove(EntityBase npc) {
 		EntityMobileObject mob = npc as EntityMobileObject;
 		if(mob == null) { throw new Exception("can't randomly move "+npc); }
@@ -266,11 +276,11 @@ public class Game : GameBase {
 		fireball.onUpdate += () => {
 			fireball.Move(fireball.currentMove);
 			if (!screen.Contains(fireball.position) || fireball.IsIntersecting(maze, IsMazeWall)) {
-				fireballs.Remove(fireball);
+				playerFireballs.Remove(fireball);
 				entities.Remove(fireball);
 			}
 		};
-		fireballs.Add(fireball);
+		playerFireballs.Add(fireball);
 		entities.Add(fireball);
 	}
 

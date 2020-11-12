@@ -21,7 +21,7 @@ public struct Coord {
 	public static readonly Coord Down = new Coord(0, 1);
 	public static readonly Coord Right = new Coord(1, 0);
 
-	public override string ToString() => $"[{row},{col}]";
+	public override string ToString() => $"{col},{row}";
 	public override int GetHashCode() => row * 0x00010000 + col;
 	public override bool Equals(object o) {
 		return (o == null || o.GetType() != typeof(Coord)) ? false : Equals((Coord)o);
@@ -71,9 +71,7 @@ public struct Coord {
 	/// <summary>
 	/// stops iterating as soon as action returns true
 	/// </summary>
-	/// <param name="min"></param>
-	/// <param name="max"></param>
-	/// <param name="action"></param>
+	/// <param name="action">runs till the first return true</param>
 	/// <returns>true if action returned true even once</returns>
 	public static bool ForEach(Coord min, Coord max, Func<Coord, bool> action) {
 		Coord cursor = min;
@@ -88,17 +86,17 @@ public struct Coord {
 	public bool ForEach(Func<Coord, bool> action) => ForEach(Zero, this, action);
 
 	public static void ForEachInclusive(Coord start, Coord end, Action<Coord> action) {
+		bool colIncrease = start.col < end.col, rowIncrease = start.row < end.row;
 		Coord cursor = start;
-		cursor.row = start.row;
 		do {
 			cursor.col = start.col;
 			do {
 				action(cursor);
-				if (cursor.col == end.col) { break; }
-				if (cursor.col < end.col) { ++cursor.col; } else { --cursor.col; }
+				if (cursor.col == end.col || (colIncrease ? cursor.col > end.col : cursor.col < end.col)) { break; }
+				if (colIncrease) { ++cursor.col; } else { --cursor.col; }
 			} while (true);
-			if (cursor.row == end.row) { break; }
-			if (cursor.row < end.row) { ++cursor.row; } else { --cursor.row; }
+			if (cursor.row == end.row || (rowIncrease ? cursor.row > end.row : cursor.row < end.row)) { break; }
+			if (rowIncrease) { ++cursor.row; } else { --cursor.row; }
 		} while (true);
 	}
 

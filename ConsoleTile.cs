@@ -4,6 +4,12 @@ public struct ConsoleTile {
 	public char letter;
 	public byte fore, back;
 
+	public static implicit operator ConsoleTile(char letter) {
+		return new ConsoleTile { letter = letter, fore = DefaultTile.fore, back = DefaultTile.back };
+	}
+
+	public static implicit operator char(ConsoleTile tile) => tile.letter;
+
 	public ConsoleTile(char letter, ConsoleColor foreColor, ConsoleColor backColor) {
 		this.letter = letter;
 		fore = (byte)foreColor;
@@ -13,36 +19,25 @@ public struct ConsoleTile {
 	public ConsoleTile(char letter, ConsoleColor foreColor) {
 		this.letter = letter;
 		fore = (byte)foreColor;
-		back = defaultTile.back;
+		back = DefaultTile.back;
+	}
+
+	static ConsoleTile() {
+		DefaultTile = new ConsoleTile('?', Console.ForegroundColor, Console.BackgroundColor);
 	}
 
 	public ConsoleColor Fore { get => (ConsoleColor)fore; set => fore = (byte)value; }
 	public ConsoleColor Back { get => (ConsoleColor)back; set => back = (byte)value; }
 
-	public readonly static ConsoleTile defaultTile;
-
-	static ConsoleTile() {
-		defaultTile = new ConsoleTile('?', Console.ForegroundColor, Console.BackgroundColor);
-	}
-
-	public static implicit operator ConsoleTile(char letter) {
-		return new ConsoleTile { letter = letter, fore = defaultTile.fore, back = defaultTile.back };
-	}
-
-	public static implicit operator char(ConsoleTile tile) => tile.letter;
+	public readonly static ConsoleTile DefaultTile;
 
 	public bool IsColorCurrent() {
 		return Console.ForegroundColor == (ConsoleColor)fore && Console.BackgroundColor == (ConsoleColor)back;
 	}
 
-	public void SetColors(ConsoleColor fore, ConsoleColor back) {
-		this.fore = (byte)fore; this.back = (byte)back;
-	}
+	public void SetColors(ConsoleColor fore, ConsoleColor back) { Fore = fore; Back = back; }
 
-	public void ApplyColor() {
-		Console.ForegroundColor = (ConsoleColor)fore;
-		Console.BackgroundColor = (ConsoleColor)back;
-	}
+	public void ApplyColor() { Console.ForegroundColor = Fore; Console.BackgroundColor = Back; }
 
 	public override string ToString() => $"[{letter}]";
 	public override int GetHashCode() => fore * 0x00010000 + back * 0x01000000 + (int)letter;

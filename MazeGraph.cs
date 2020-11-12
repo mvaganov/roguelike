@@ -121,10 +121,10 @@ namespace MazeGeneration
 			List<Node> blocks = new List<Node>();
 			Node goal = bossRoomScore[0].Key;
 			finalGoal = (endLocationScore[0].Key.nodeData as MazePath).path[0];
-			//Console.Write($"goal is at {GetName(goal)}\n");
+			Console.Write($"goal is at {GetName(goal)}\n");
 			Edge edgeToBlock = GetNextBlockedEdge(goal, keys), whereTheDoorIs;
 			Node nodeBlocked = edgeToBlock._to;
-			//Console.Write($"door@{GetName(nodeBlocked)}, ");
+			Console.Write($"door@{GetName(edgeToBlock._from)}->{GetName(edgeToBlock._to)}, ");
 			whereTheDoorIs = edgeToBlock;
 
 			for (int i = 0; i < endLocationScore.Count; ++i) {
@@ -141,16 +141,16 @@ namespace MazeGeneration
 
 				//Console.WriteLine("that seems like a good plan!");
 				goal = possibleKeyLocation;
-				//Console.Write($"{nextKey}@{GetName(goal)}");
+				Console.Write($"{nextKey}@{GetName(goal)}");
 				edgeToBlock = GetNextBlockedEdge(goal, keys);
 
 				if(edgeToBlock == null) {
-				//	Console.Write("\n");
+					Console.Write("\n");
 					break;
 				}
 				if(edgeToBlock._to == possibleKeyLocation)
 				{
-				//	Console.Write("-");
+					Console.Write("-");
 					blocks.Remove(nodeBlocked);
 					continue;
 				}
@@ -163,7 +163,7 @@ namespace MazeGeneration
 				CalculateEndLocations(start, keys); i = 0;
 
 				nodeBlocked = edgeToBlock._to;
-				//Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
+				Console.Write($"\ndoor {GetName(edgeToBlock._from)}->{GetName(nodeBlocked)}, ");
 				whereTheDoorIs = edgeToBlock;
 			}
 			//int kvpIndex = 0;
@@ -349,7 +349,7 @@ namespace MazeGeneration
 						ledger[w] = weightCalculation(w, currentDepth+1);
 						Q.Add(w);
 						nodesAtNextDepth++;
-						//Console.Write(GetName(w) + " ");
+						Console.Write(GetName(w) + " ");
 					}
 				}
 				--nodesAtCurrentDepth;
@@ -357,7 +357,7 @@ namespace MazeGeneration
 					currentDepth++;
 					nodesAtCurrentDepth = nodesAtNextDepth;
 					nodesAtNextDepth = 0;
-					//Console.Write("\n"+currentDepth + ": ");
+					Console.Write("\n"+currentDepth + ": ");
 				}
 			}
 		}

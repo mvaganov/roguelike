@@ -1,8 +1,6 @@
 using System;
 
-public interface IRect : IPosition {
-	Rect GetRect();
-}
+public interface IRect : IPosition { Rect GetRect(); }
 
 public struct Rect : IPosition, IRect {
 	public Coord min, max;
@@ -97,11 +95,7 @@ public struct Rect : IPosition, IRect {
 		return change;
 	}
 
-	public bool Expand(Rect p) {
-		return ExpandRectangle(p.min, p.max, ref min, ref max);
-	}
+	public bool Expand(Rect p) => ExpandRectangle(p.min, p.max, ref min, ref max);
 
-	public bool Expand(Coord p) {
-		return ExpandRectangle(p, p, ref min, ref max);
-	}
+	public bool Expand(Coord p) => ExpandRectangle(p, p, ref min, ref max);
 }

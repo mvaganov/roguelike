@@ -1,3 +1,5 @@
+using System;
+
 public class Map2D : IRect {
 	private ConsoleTile[,] map;
 	public int transparentLetter = -1;
@@ -24,19 +26,19 @@ public class Map2D : IRect {
 		}
 	}
 
-	public void SetEach(System.Func<int, int, ConsoleTile> rowColumnValue) {
+	public void SetEach(System.Func<Coord, ConsoleTile> rowColumnValue) {
 		for (int r = 0; r < Height; ++r) {
 			for (int c = 0; c < Width; ++c) {
-				map[r, c] = rowColumnValue(r,c);
+				map[r, c] = rowColumnValue(new Coord(c,r));
 			}
 		}
 	}
 
-	public void Fill(ConsoleTile fill) { SetEach((r, c) => fill); }
+	public void Fill(ConsoleTile fill) { SetEach((coord) => fill); }
 
 	public void Copy(Map2D m) {
 		SetSize(m.Size);
-		SetEach((r, c) => m.map[r, c]);
+		SetEach(coord => m[coord]);
 	}
 
 	public Coord Size {
@@ -61,6 +63,8 @@ public class Map2D : IRect {
 		get => map[position.row, position.col];
 		set => map[position.row, position.col] = value;
 	}
+
+	public void ForEach(Action<Coord> action) { Size.ForEach(action); }
 
 	public bool Contains(Coord position) { return position.IsWithin(Size); }
 

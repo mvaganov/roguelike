@@ -5,13 +5,16 @@ public class GameBase {
 	protected bool isRunning;
 	protected ConsoleKeyInfo keyIn;
 	/// <summary>
-	/// drawing, updading entities
+	/// drawing, updating entities
 	/// </summary>
 	protected List<EntityBase> entities = new List<EntityBase>();
 	/// <summary>
 	/// colliding entities
 	/// </summary>
 	protected List<EntityBase> colliders = new List<EntityBase>();
+	/// <summary>
+	/// entities that need to be removed from entities and colliders list
+	/// </summary>
 	protected List<EntityBase> toDestroy = new List<EntityBase>();
 	protected Map2D screen, backBuffer;
 	protected Coord screenOffset = Coord.Zero;
@@ -56,7 +59,7 @@ public class GameBase {
 				}
 			}
 		}
-		ConsoleTile.defaultTile.ApplyColor();
+		ConsoleTile.DefaultTile.ApplyColor();
 		Console.SetCursorPosition(0, screen.Height);
 	}
 
@@ -77,6 +80,7 @@ public class GameBase {
 			case 'l': screenOffset.col += scrollJump.col; break;
 		}
 		screenOffset = ClampToScrollSpace(screenOffset);
+		// before collision detection, remember the position of moving objects
 		while (colliderOldPosition.Count < colliders.Count) { colliderOldPosition.Add(Coord.Zero); }
 		for (int i = 0; i < colliders.Count; ++i) { colliderOldPosition[i] = colliders[i].position; }
 		for (int i = 0; i < entities.Count; ++i) {
@@ -89,14 +93,12 @@ public class GameBase {
 				int hitIndex = colliders.IndexOfIntersect(entity, null);
 				if (hitIndex >= 0) {
 					collided.Add(i);
-					//Console.Write(entity.name + " collided with "+collisionLayer[hitIndex].name);
 					EntityBase wasHit = colliders[hitIndex];
 					wasHit.onTrigger?.Invoke(entity);
-					//if()
-					//Console.ReadKey();
 				}
 			}
 		}
+		// if collision happened, move colliding objects back
 		if(collided.Count > 0) {
 			collided.ForEach(i => colliders[i].position = colliderOldPosition[i]);
 			collided.Clear();
@@ -118,7 +120,7 @@ public class GameBase {
 
 	public bool IsInScrollArea(Coord coord) => coord.IsWithin(scrollMin, scrollMax + screen.Size);
 
-	public void KeepVisiblity(Coord target) {
+	public void SetScrollToKeepVisiblity(Coord target) {
 		Coord jump = DeltaNeededToKeepInside(target, screenOffset + scrollBorder, screenOffset + screen.Size - scrollBorder);
 		jump.Scale(scrollJump);
 		screenOffset += jump;
@@ -130,8 +132,8 @@ public class GameBase {
 		max -= Coord.One;
 		if (target.col < min.col) { delta.col = (short)(target.col - min.col); }
 		if (target.row < min.row) { delta.row = (short)(target.row - min.row); }
-		if (target.col >=max.col) { delta.col = (short)(target.col - max.col); }
-		if (target.row >=max.row) { delta.row = (short)(target.row - max.row); }
+		if (target.col > max.col) { delta.col = (short)(target.col - max.col); }
+		if (target.row > max.row) { delta.row = (short)(target.row - max.row); }
 		return delta;
 	}
 }

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 public class Entity2D : EntityBase {
 	public Map2D map = new Map2D();
 
+	public Entity2D() { }
+
 	public Entity2D(string name, ConsoleTile fill, Coord position, Coord size) {
 		this.name = name;
 		this.position = position;
@@ -42,51 +44,9 @@ public class Entity2D : EntityBase {
 		set { map[position - this.position] = value; }
 	}
 
+	public void ForEach(Action<Coord> action) { GetRect().ForEach(action); }
+
 	public bool Contains(Coord position) {
 		return map.Contains(position - this.position);
 	}
 }
-
-//public class EntityComposite : EntityBase {
-//	public EntityComposite() {
-//		//onCollision
-//	}
-
-//	private List<EntityBase> part = new List<EntityBase>();
-//	public override void Draw(ConsoleTile[,] map, Coord offset) {
-//		part.ForEach(e => e.Draw(map, offset));
-//	}
-
-//	public override Coord GetSize() {
-//		Coord min = position, max = position;
-//		Coord size = Coord.Zero;
-//		if(part.Count > 0) {
-//			size = part[0].GetSize();
-//			min = part[0].position;
-//			max = min + size;
-//			part.ForEach(e => {
-//				Coord s = e.GetSize();
-//				Coord.ExpandRectangle(e.position, s, ref min, ref max);
-//			});
-//			size = max - min;
-//		}
-//		return size;
-//	}
-
-//	public int CountParts => part.Count;
-
-//	public void AddPart(EntityBase newPart) { part.Add(newPart); }
-
-//	public EntityBase GetPart(int index) { return part[index]; }
-
-//	//public bool IsColliding(EntityBase other, Func<Coord,bool> whatTriggersCollision) {
-//	//	for(int i = 0; i < part.Count; ++i) {
-//	//		if(part[i].Intersects(other, whatTriggersCollision)) {
-
-//	//		}
-//	//	}
-//	//	part.ForEach(e => {
-//	//		return true;
-//	//	});
-//	//}
-//}
